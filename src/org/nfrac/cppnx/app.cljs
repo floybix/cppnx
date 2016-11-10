@@ -3,6 +3,7 @@
             [org.nfrac.cppnx.helpers :refer [glcanvas]]
             [org.nfrac.cppnx.webgl-image :as gl-img]
             [org.nfrac.cppnx.webgl-lines :as gl-lines]
+            [org.nfrac.cppnx.svg :as svg]
             [monet.canvas :as c]
             [reagent.core :as reagent :refer [atom]]
             [goog.dom :as dom]
@@ -38,7 +39,8 @@
      [:div.row
       [:div.col-lg-12
        [:p
-        "Settings pane. "]]]]))
+        "Network, inputs to outputs"]
+       (svg/cppn-svg (:cppn @app-state))]]]))
 
 (defn view-pane
   [app-state ui-state]
@@ -47,7 +49,7 @@
      [:div.row
       [:div.col-lg-12
        [:p
-        "View panel. "]
+        "Rendered CPPN output"]
        [glcanvas
         {:style {:border "1px black"
                  :width "400px"
