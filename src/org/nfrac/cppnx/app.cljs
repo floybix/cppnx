@@ -10,8 +10,8 @@
 
 (enable-console-print!)
 
-(defonce app-state
-  (atom {}))
+(def app-state
+  (atom {:cppn cppnx/example-cppn}))
 
 (defonce ui-state
   (atom {}))
