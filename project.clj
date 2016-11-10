@@ -7,11 +7,12 @@
   :min-lein-version "2.7.1"
 
   :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
-                 [org.clojure/clojurescript "1.9.183" #_"1.9.293"]
+                 [org.clojure/clojurescript "1.9.293"]
                  [org.clojure/core.async "0.2.395"
                   :exclusions [org.clojure/tools.reader]]
                  [kovasb/gamma "0.0-135-21-g3c9e" #_"0.1.1" :exclusions [[fipp]]]
-                 [fipp "0.6.7"]
+                 [fipp "0.6.7" :exclusions [org.clojure/core.rrb-vector]]
+                 [quantum/org.clojure.core.rrb-vector "0.0.12"]
                  [rm-hull/monet "0.3.0"]
                  [reagent "0.6.0"]
                  [reagent-forms "0.5.28"]]
