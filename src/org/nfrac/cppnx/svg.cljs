@@ -21,12 +21,12 @@
                     [node {:x (+ (* width-px (/ (inc j) (inc (count nodes))))
                                  (* (mod row 3) (* width-px 0.02)))
                            :y (* row-px (+ row 0.5))
-                           :deps (-> cppn :edges (get node) keys)
+                           :deps (-> cppn :edges (get node))
                            :label (-> cppn :nodes (get node node) name)}])
                   (for [[j [node dep]] (indexed (:out-nodes cppn))]
                     [node {:x (* width-px (/ (inc j) (inc (count (:out-nodes cppn)))))
                            :y (* row-px (+ (count strata) 0.5))
-                           :deps [dep]
+                           :deps {dep 1.0}
                            :label (name node)}])))]
     [:svg.cppn-graph
      {:view-box (str "0 0 " width-px " " height-px)
@@ -38,11 +38,13 @@
      (into
       [:g]
       (for [[node info] by-node
-            from-info (map by-node (:deps info))]
+            [from w] (:deps info)
+            :let [from-info (by-node from)]]
         [:polyline
          {:points (str/join " " [(:x info) (:y info)
                                  (:x from-info) (:y from-info)])
-          :stroke "#000"}]))
+          :stroke (if (pos? w) "#000" "#f00")
+          :stroke-width (Math/sqrt (Math/abs w))}]))
      ;; nodes
      (into
       [:g]
