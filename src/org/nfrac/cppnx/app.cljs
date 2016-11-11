@@ -4,6 +4,7 @@
             [org.nfrac.cppnx.webgl-image :as gl-img]
             [org.nfrac.cppnx.webgl-lines :as gl-lines]
             [org.nfrac.cppnx.svg :as svg]
+            [fipp.edn]
             [monet.canvas :as c]
             [reagent.core :as reagent :refer [atom]]
             [goog.dom :as dom]
@@ -11,7 +12,7 @@
 
 (enable-console-print!)
 
-(def app-state
+(defonce app-state
   (atom {:cppn cppnx/example-cppn}))
 
 (defonce ui-state
@@ -40,7 +41,34 @@
       [:div.col-lg-12
        [:p
         "Network, inputs to outputs"]
-       (svg/cppn-svg (:cppn @app-state))]]]))
+       (svg/cppn-svg (:cppn @app-state))]]
+     [:div.row
+      [:div.col-sm-3
+       [:button.btn.btn-default
+        {:on-click (fn [e]
+                     (swap-advance! app-state update :cppn
+                                    cppnx/mutate-append-node))}
+        "Append node"]]
+      [:div.col-sm-3
+       [:button.btn.btn-default
+        {:on-click (fn [e]
+                     (swap-advance! app-state update :cppn
+                                    cppnx/mutate-add-conn))}
+        "Add connection"]]
+      [:div.col-sm-3
+       [:button.btn.btn-default
+        {:on-click (fn [e]
+                     (swap-advance! app-state update :cppn
+                                    cppnx/mutate-rewire-output))}
+        "Rewire output"]]]
+     [:div.row
+      [:div
+       "TODO: Weight tour"]]
+     [:div.row
+      [:p
+       "CPPN data"]
+      [:pre
+       (with-out-str (fipp.edn/pprint (:cppn @app-state)))]]]))
 
 (defn view-pane
   [app-state ui-state]

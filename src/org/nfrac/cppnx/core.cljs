@@ -9,12 +9,14 @@
 ;; and cycles are not allowed.
 (def example-cppn
   {:inputs [:bias :x :y :d]
-   :nodes {3 :gaussian
+   :nodes {1 :linear
+           3 :gaussian
            4 :linear}
-   :edges {3 {:y 1.0}
+   :edges {1 {:d 1.0}
+           3 {:y 1.0}
            4 {3 0.5
               :y -1.0}}
-   :out-nodes {:h :d
+   :out-nodes {:h 1
                :s 4
                :v 3}
    :topology-hash 0})
@@ -24,11 +26,11 @@
 
 (s/def ::node-id (-> any? (s/with-gen #(s/gen ident?))))
 (s/def ::inputs (s/coll-of ::node-id, :min-count 1, :distinct true))
-(s/def ::nodes (s/map-of ::node-id all-node-types))
+(s/def ::nodes (s/map-of ::node-id all-node-types, :min-count 1))
 (s/def ::weight (s/double-in :min -100 :max 100 :NaN? false))
 (s/def ::node-edges (s/map-of ::node-id ::weight))
-(s/def ::edges (s/map-of ::node-id ::node-edges))
-(s/def ::out-nodes (s/map-of keyword? ::node-id))
+(s/def ::edges (s/map-of ::node-id ::node-edges, :min-count 1))
+(s/def ::out-nodes (s/map-of keyword? ::node-id, :min-count 1))
 (s/def ::topology-hash int?)
 
 (s/def ::cppn
@@ -81,17 +83,68 @@
 
 ;;; cppn wrangling
 
-(defn mutate-add-node
-  [cppn])
+(defn remap
+  "Transforms a map `m` applying function `f` to each value."
+  [f m]
+  (into (or (empty m) {})
+        (map (fn [[k v]] [k (f v)]))
+        m))
+
+(defn cppn-graph
+  [cppn]
+  (graph/directed-graph (concat (:inputs cppn) (keys (:nodes cppn)))
+                        (remap keys (:edges cppn))))
+
+(defn cppn-strata
+  [cppn]
+  (graph/dependency-list (cppn-graph cppn)))
+
+(defn downstream
+  "Returns the collection of downstream nodes including self."
+  [cppn node-id]
+  (let [gr (cppn-graph cppn)]
+    (-> (graph/reverse-graph gr)
+        (graph/transitive-closure)
+        (graph/add-loops)
+        (graph/get-neighbors node-id))))
+
+(defn mutate-append-node
+  [cppn]
+  (let [types all-node-types
+        type (rand-nth (seq types))
+        id (keyword (gensym "node"))
+        [output onode] (rand-nth (seq (:out-nodes cppn)))]
+    (-> cppn
+        (update :nodes assoc id type)
+        (update :edges assoc id {onode 1.0})
+        (update :out-nodes assoc output id)
+        (update :topology-hash inc))))
 
 (defn mutate-add-conn
-  [cppn])
+  [cppn]
+  (let [[to-node to-edges] (rand-nth (seq (:edges cppn)))
+        candidates (remove (into (set (keys to-edges))
+                                 (downstream cppn to-node))
+                           (concat (keys (:nodes cppn)) (:inputs cppn)))]
+    (if (seq candidates)
+      (-> cppn
+          (assoc-in [:edges to-node (rand-nth (seq candidates))] 1.0)
+          (update :topology-hash inc))
+      cppn)))
 
 (defn mutate-rewire-conn
-  [cppn])
+  [cppn]
+  (let [[to-node to-edges] (rand-nth (seq (:edges cppn)))
+        [rm-from w] (rand-nth to-edges)]))
+
 
 (defn mutate-rewire-output
-  [cppn])
+  [cppn]
+  (let [[output onode] (rand-nth (seq (:out-nodes cppn)))
+        node (rand-nth (keys (:nodes cppn)))]
+    (-> cppn
+        (assoc-in [:out-nodes output] node)
+        (update :topology-hash inc))))
 
 (defn mutate-remove-unused
   [cppn])
@@ -112,18 +165,6 @@
 
 
 
-(defn remap
-  "Transforms a map `m` applying function `f` to each value."
-  [f m]
-  (into (or (empty m) {})
-        (map (fn [[k v]] [k (f v)]))
-        m))
-
-(defn cppn-strata
-  [cppn]
-  (let [gr (graph/directed-graph (concat (:inputs cppn) (keys (:nodes cppn)))
-                                 (remap keys (:edges cppn)))]
-    (graph/dependency-list gr)))
 
 (defn build-cppn-vals
   [cppn in-exprs]
