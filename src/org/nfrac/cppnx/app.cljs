@@ -3,6 +3,7 @@
             [org.nfrac.cppnx.helpers :refer [glcanvas]]
             [org.nfrac.cppnx.webgl-image :as gl-img]
             [org.nfrac.cppnx.webgl-lines :as gl-lines]
+            [org.nfrac.cppnx.animate :as animate]
             [org.nfrac.cppnx.svg :as svg]
             [fipp.edn]
             [monet.canvas :as c]
@@ -33,37 +34,93 @@
     (reset! redo-buffer ()))
   (apply swap! ref f more))
 
+(defn tour-go
+  [app-state]
+  (swap! app-state assoc :animating? true
+         :last-rendered (.getTime (js/Date.)))
+  (animate/animate
+   app-state
+   (fn [state]
+     (let [time-now (.getTime (js/Date.))
+           elapsed (- time-now (:last-rendered state))
+           seconds-per-move 1.0]
+       (-> state
+           (update :cppn cppnx/step-weights-tour
+                   (/ elapsed 1000.0 seconds-per-move))
+           (assoc :last-rendered time-now))))
+   (fn [state]
+     ;; react handles redrawing
+     nil)))
+
 (defn settings-pane
   [app-state ui-state]
-  (let []
+  (let [cppn (:cppn @app-state)]
     [:div
      [:div.row
       [:div.col-lg-12
-       [:p
-        "Network, inputs to outputs"]
-       (svg/cppn-svg (:cppn @app-state))]]
+       [svg/cppn-svg cppn]]]
      [:div.row
       [:div.col-sm-3
        [:button.btn.btn-default
         {:on-click (fn [e]
                      (swap-advance! app-state update :cppn
-                                    cppnx/mutate-append-node))}
+                                    cppnx/mutate-append-node))
+         :disabled (when (:tour cppn) "disabled")}
         "Append node"]]
       [:div.col-sm-3
        [:button.btn.btn-default
         {:on-click (fn [e]
                      (swap-advance! app-state update :cppn
-                                    cppnx/mutate-add-conn))}
+                                    cppnx/mutate-add-conn))
+         :disabled (when (:tour cppn) "disabled")}
         "Add connection"]]
       [:div.col-sm-3
        [:button.btn.btn-default
         {:on-click (fn [e]
                      (swap-advance! app-state update :cppn
-                                    cppnx/mutate-rewire-output))}
-        "Rewire output"]]]
+                                    cppnx/mutate-rewire-output))
+         :disabled (when (:tour cppn) "disabled")}
+        "Rewire output"]]
+      [:div.col-sm-3
+       [:button.btn.btn-default
+        {:on-click (fn [e]
+                     (swap-advance! app-state update :cppn
+                                    cppnx/mutate-rewire-conn))
+         :disabled (when (:tour cppn) "disabled")}
+        "Rewire connection"]]]
      [:div.row
-      [:div
-       "TODO: Weight tour"]]
+      [:div.col-sm-3
+       [:button.btn.btn-default
+        {:on-click (fn [e]
+                     (swap-advance! app-state update :cppn
+                                    cppnx/randomise-weights))
+         :disabled (when (:tour cppn) "disabled")}
+        "Random weights"]]
+      [:div.col-sm-3
+       [:button.btn.btn-default
+        {:on-click (fn [e]
+                     (swap-advance! app-state update :cppn
+                                    cppnx/init-isolated-weights-tour)
+                     (tour-go app-state))
+         :disabled (when (:tour cppn) "disabled")}
+        "Simple weight tour"]]
+      [:div.col-sm-3
+       [:button.btn.btn-default
+        {:on-click (fn [e]
+                     (swap-advance! app-state update :cppn
+                                    cppnx/init-pair-weights-tour)
+                     (tour-go app-state))
+         :disabled (when (:tour cppn) "disabled")}
+        "Pair weight tour"]]
+      (when (:tour cppn)
+       [:div.col-sm-3
+         [:button.btn.btn-danger
+          {:on-click (fn [e]
+                       (swap-advance! app-state
+                                      (fn [state]
+                                        (-> (update state :cppn dissoc :tour)
+                                            (dissoc :animating? :last-rendered)))))}
+          "Stop tour"]])]
      [:div.row
       [:p
        "CPPN data"]
@@ -76,13 +133,11 @@
     [:div
      [:div.row
       [:div.col-lg-12
-       [:p
-        "Rendered CPPN output"]
        [glcanvas
         {:style {:border "1px black"
-                 :width "400px"
-                 :height "300px"}}
-        400 300
+                 :width "600px"
+                 :height "600px"}}
+        600 600
         [app-state]
         (fn [gl]
           (let [pgm (gl-img/setup gl @app-state)]

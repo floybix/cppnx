@@ -135,13 +135,21 @@
 (defn mutate-rewire-conn
   [cppn]
   (let [[to-node to-edges] (rand-nth (seq (:edges cppn)))
-        [rm-from w] (rand-nth to-edges)]))
-
+        [rm-from w] (rand-nth (seq to-edges))
+        candidates (remove (into (set (keys to-edges))
+                                 (downstream cppn to-node))
+                           (concat (keys (:nodes cppn)) (:inputs cppn)))]
+    (if (seq candidates)
+      (-> cppn
+          (update-in [:edges to-node] dissoc rm-from)
+          (assoc-in [:edges to-node (rand-nth (seq candidates))] w)
+          (update :topology-hash inc))
+      cppn)))
 
 (defn mutate-rewire-output
   [cppn]
   (let [[output onode] (rand-nth (seq (:out-nodes cppn)))
-        node (rand-nth (keys (:nodes cppn)))]
+        node (rand-nth (keys (dissoc (:nodes cppn) onode)))]
     (-> cppn
         (assoc-in [:out-nodes output] node)
         (update :topology-hash inc))))
@@ -149,22 +157,100 @@
 (defn mutate-remove-unused
   [cppn])
 
-(defn randomise-weights
-  [cppn])
+(defn rand-skew
+  [max power]
+  (-> (rand (Math/pow max (/ 1 power)))
+      (Math/pow power)))
 
-(defn init-weights-tour
+(defn rand-sign [] (if (pos? (rand-int 2)) 1 -1))
+
+(defn randomise-weights
   [cppn]
-  {:phases
-   :wavelengths})
+  (let [edge-list (for [[from m] (:edges cppn)
+                        [to w] m]
+                    [from to])]
+    (reduce (fn [cppn edge]
+              (assoc-in cppn (into [:edges] edge)
+                        (* (rand-skew 10 2) (rand-sign))))
+            cppn
+            edge-list)))
+
+(def waypoints
+  (let [xs [0.2 0.5 1.0 2.5 10.0]]
+    (vec (concat xs (map - xs)))))
+
+(defn smooth-step
+  [z]
+  (let [z (-> z (max 0.0) (min 1.0))]
+    (* z z (- 3 (* 2 z)))))
+
+(defn smoother-step
+  [z]
+  (let [z (-> z (max 0.0) (min 1.0))]
+    (* z z z (+ 10 (* z (- (* z 6) 15))))))
+
+(defn interp
+  [from to z]
+  (+ from (* z (- to from))))
+
+(defn init-1d-motion
+  [cppn]
+  (let [edge-list (for [[from m] (:edges cppn)
+                        [to w] m]
+                    [from to])
+        selected-edge (rand-nth edge-list)
+        origin-w (get-in (:edges cppn) selected-edge)
+        target-w (rand-nth waypoints)]
+    {:edge selected-edge
+     :origin-w origin-w
+     :target-w target-w
+     :value origin-w
+     :time-fraction 0.0}))
+
+(defn step-1d-motion
+  [motion time-inc]
+  (let [{:keys [origin-w target-w time-fraction]} motion
+        new-time (+ time-fraction time-inc)]
+    (assoc motion
+           :value (interp origin-w target-w (smooth-step new-time))
+           :time-fraction new-time
+           :done? (>= new-time 1.0))))
+
+(defn init-isolated-weights-tour
+  [cppn]
+  (assoc cppn
+         :tour [(init-1d-motion cppn)]))
+
+(defn init-pair-weights-tour
+  [cppn]
+  (assoc cppn
+         :tour [(init-1d-motion cppn)
+                (assoc (init-1d-motion cppn) :done? true)]))
+
+(defn apply-tour
+  [cppn tour]
+  (reduce (fn [cppn motion]
+            (assoc-in cppn (into [:edges] (:edge motion))
+                      (:value motion)))
+          cppn
+          tour))
 
 (defn step-weights-tour
-  [tour])
-
-(defn with-weights-tour
-  [cppn tour])
-
-
-
+  [cppn dt]
+  (let [concurrency (count (:tour cppn))
+        ;; replace any completed motions with new random ones
+        ongoing (remove :done? (:tour cppn))
+        ntour (reduce (fn [tour i]
+                        (let [m (init-1d-motion cppn)]
+                          ;; make sure not moving the same parameter twice
+                          (if (contains? (set (map :edge tour)) (:edge m))
+                            (recur tour i)
+                            (conj tour m))))
+                      ongoing
+                      (range (- concurrency (count ongoing))))
+        tour (map #(step-1d-motion % dt) ntour)]
+    (-> (apply-tour cppn tour)
+        (assoc :tour tour))))
 
 (defn build-cppn-vals
   [cppn in-exprs]
