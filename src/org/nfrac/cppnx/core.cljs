@@ -9,16 +9,16 @@
 ;; and cycles are not allowed.
 (def example-cppn
   {:inputs [:bias :x :y :d]
-   :nodes {1 :linear
-           3 :gaussian
-           4 :linear}
-   :edges {1 {:d 1.0}
-           3 {:y 1.0}
-           4 {3 0.5
-              :y -1.0}}
-   :out-nodes {:h 1
-               :s 4
-               :v 3}
+   :nodes {:na :linear
+           :nb :gaussian
+           :nc :linear}
+   :edges {:na {:d 1.0}
+           :nb {:y 1.0}
+           :nc {:nb 0.5
+                :y -1.0}}
+   :out-nodes {:h :na
+               :s :nc
+               :v :nb}
    :topology-hash 0})
 
 (def all-node-types
@@ -154,8 +154,13 @@
         (assoc-in [:out-nodes output] node)
         (update :topology-hash inc))))
 
-(defn mutate-remove-unused
-  [cppn])
+(defn link-nodes
+  "Attempt to link node a -> b,
+   but if that would be cyclic, link b -> a instead."
+  [cppn node-a node-b]
+  (if (contains? (downstream cppn node-b) node-a)
+    (assoc-in cppn [:edges node-a node-b] 1.0)
+    (assoc-in cppn [:edges node-b node-a] 1.0)))
 
 (defn rand-skew
   [max power]
@@ -258,6 +263,7 @@
         sorted-nids (apply concat (rest strata))
         node-exprs (reduce (fn [m nid]
                              (let [node-type (get-in cppn [:nodes nid])
+                                   _ (println nid node-type)
                                    ideps (get-in cppn [:edges nid])
                                    sum (->> ideps
                                             (map (fn [[from-id w]]

@@ -9,7 +9,9 @@
             [monet.canvas :as c]
             [reagent.core :as reagent :refer [atom]]
             [goog.dom :as dom]
-            [goog.webgl :as ggl]))
+            [goog.webgl :as ggl]
+            [clojure.core.async :as async :refer [<! put!]])
+  (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (enable-console-print!)
 
@@ -54,78 +56,101 @@
 
 (defn settings-pane
   [app-state ui-state]
-  (let [cppn (:cppn @app-state)]
-    [:div
-     [:div.row
-      [:div.col-lg-12
-       [svg/cppn-svg cppn]]]
-     [:div.row
-      [:div.col-sm-3
-       [:button.btn.btn-default
-        {:on-click (fn [e]
-                     (swap-advance! app-state update :cppn
-                                    cppnx/mutate-append-node))
-         :disabled (when (:tour cppn) "disabled")}
-        "Append node"]]
-      [:div.col-sm-3
-       [:button.btn.btn-default
-        {:on-click (fn [e]
-                     (swap-advance! app-state update :cppn
-                                    cppnx/mutate-add-conn))
-         :disabled (when (:tour cppn) "disabled")}
-        "Add connection"]]
-      [:div.col-sm-3
-       [:button.btn.btn-default
-        {:on-click (fn [e]
-                     (swap-advance! app-state update :cppn
-                                    cppnx/mutate-rewire-output))
-         :disabled (when (:tour cppn) "disabled")}
-        "Rewire output"]]
-      [:div.col-sm-3
-       [:button.btn.btn-default
-        {:on-click (fn [e]
-                     (swap-advance! app-state update :cppn
-                                    cppnx/mutate-rewire-conn))
-         :disabled (when (:tour cppn) "disabled")}
-        "Rewire connection"]]]
-     [:div.row
-      [:div.col-sm-3
-       [:button.btn.btn-default
-        {:on-click (fn [e]
-                     (swap-advance! app-state update :cppn
-                                    cppnx/randomise-weights))
-         :disabled (when (:tour cppn) "disabled")}
-        "Random weights"]]
-      [:div.col-sm-3
-       [:button.btn.btn-default
-        {:on-click (fn [e]
-                     (swap-advance! app-state update :cppn
-                                    cppnx/init-isolated-weights-tour)
-                     (tour-go app-state))
-         :disabled (when (:tour cppn) "disabled")}
-        "Simple weight tour"]]
-      [:div.col-sm-3
-       [:button.btn.btn-default
-        {:on-click (fn [e]
-                     (swap-advance! app-state update :cppn
-                                    cppnx/init-pair-weights-tour)
-                     (tour-go app-state))
-         :disabled (when (:tour cppn) "disabled")}
-        "Pair weight tour"]]
-      (when (:tour cppn)
-       [:div.col-sm-3
-         [:button.btn.btn-danger
-          {:on-click (fn [e]
-                       (swap-advance! app-state
-                                      (fn [state]
-                                        (-> (update state :cppn dissoc :tour)
-                                            (dissoc :animating? :last-rendered)))))}
-          "Stop tour"]])]
-     [:div.row
-      [:p
-       "CPPN data"]
-      [:pre
-       (with-out-str (fipp.edn/pprint (:cppn @app-state)))]]]))
+  (let [svg-events-c (async/chan)]
+    (go-loop []
+      (when-let [m (<! svg-events-c)]
+        (let [from (:from m)
+              to (:to m)
+              f (case (:event m)
+                  :select
+                  (fn [s]
+                    (println "select event" m)
+                    s)
+                  :link
+                  (fn [s]
+                    (println "link event " m)
+                    (cond
+                      (get-in s [:cppn :edges from to])
+                      (update-in s [:cppn :edges from] dissoc to)
+                      (get-in s [:cppn :edges to from])
+                      (update-in s [:cppn :edges to] dissoc from)
+                      :else
+                      (update s :cppn cppnx/link-nodes from to))))]
+           (swap-advance! app-state f))
+        (recur)))
+    (fn [_ _]
+      (let [cppn (:cppn @app-state)]
+        [:div
+          [:div.row
+            [:div.col-lg-12
+              [svg/cppn-svg cppn svg-events-c]]]
+          [:div.row
+            [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (swap-advance! app-state update :cppn
+                                           cppnx/mutate-append-node))
+                :disabled (when (:tour cppn) "disabled")}
+               "Append node"]]
+            [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (swap-advance! app-state update :cppn
+                                           cppnx/mutate-add-conn))
+                :disabled (when (:tour cppn) "disabled")}
+               "Add connection"]]
+            [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (swap-advance! app-state update :cppn
+                                           cppnx/mutate-rewire-output))
+                :disabled (when (:tour cppn) "disabled")}
+               "Rewire output"]]
+            [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (swap-advance! app-state update :cppn
+                                           cppnx/mutate-rewire-conn))
+                :disabled (when (:tour cppn) "disabled")}
+               "Rewire connection"]]]
+          [:div.row
+            [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (swap-advance! app-state update :cppn
+                                           cppnx/randomise-weights))
+                :disabled (when (:tour cppn) "disabled")}
+               "Random weights"]]
+            [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (swap-advance! app-state update :cppn
+                                           cppnx/init-isolated-weights-tour)
+                            (tour-go app-state))
+                :disabled (when (:tour cppn) "disabled")}
+               "Simple weight tour"]]
+            [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (swap-advance! app-state update :cppn
+                                           cppnx/init-pair-weights-tour)
+                            (tour-go app-state))
+                :disabled (when (:tour cppn) "disabled")}
+               "Pair weight tour"]]
+            (when (:tour cppn)
+              [:div.col-sm-3
+                [:button.btn.btn-danger
+                 {:on-click (fn [e]
+                              (swap-advance! app-state
+                                             (fn [state]
+                                               (-> (update state :cppn dissoc :tour)
+                                                   (dissoc :animating? :last-rendered)))))}
+                 "Stop tour"]])]
+          [:div.row
+            [:p
+              "CPPN data"]
+            [:pre
+              (with-out-str (fipp.edn/pprint (:cppn @app-state)))]]]))))
 
 (defn view-pane
   [app-state ui-state]
