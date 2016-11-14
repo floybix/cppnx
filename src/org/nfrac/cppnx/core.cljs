@@ -114,13 +114,13 @@
           [(:outputs cppn)]))
 
 (defn downstream
-  "Returns the collection of downstream nodes including self."
+  "Returns the collection of all downstream nodes including self."
   [cppn node-id]
-  (let [gr (cppn-graph cppn)]
-    (-> (graph/reverse-graph gr)
-        (graph/transitive-closure)
-        (graph/add-loops)
-        (graph/get-neighbors node-id))))
+  (-> (cppn-graph cppn)
+      (graph/reverse-graph)
+      (graph/transitive-closure)
+      (graph/add-loops)
+      (graph/get-neighbors node-id)))
 
 (defn mutate-append-node
   [cppn]
@@ -162,11 +162,30 @@
           (update :topology-hash inc))
       cppn)))
 
+(defn delete-node
+  [cppn node]
+  (let [above (keys (get-in cppn [:edges node]))
+        below (-> (cppn-graph cppn)
+                  (graph/reverse-graph)
+                  (graph/get-neighbors node))]
+    (->
+     (reduce (fn [m below-node]
+               (let [w (get-in m [:edges below-node node])]
+                 (update-in m [:edges below-node]
+                            #(-> (merge (zipmap above (repeat w)) %)
+                                 (dissoc node)))))
+             cppn
+             below)
+     (update :edges dissoc node)
+     (update :nodes dissoc node))))
+
 (defn link-nodes
   "Attempt to link node a -> b,
    but if that would be cyclic, link b -> a instead."
   [cppn node-a node-b]
-  (if (contains? (downstream cppn node-b) node-a)
+  (if (or (contains? (:outputs cppn) node-a)
+          (contains? (:inputs cppn) node-b)
+          (contains? (downstream cppn node-b) node-a))
     (assoc-in cppn [:edges node-a node-b] 1.0)
     (assoc-in cppn [:edges node-b node-a] 1.0)))
 
@@ -177,6 +196,10 @@
 
 (defn rand-sign [] (if (pos? (rand-int 2)) 1 -1))
 
+(defn rand-weight
+  []
+  (* (rand-skew 12 2.5) (rand-sign)))
+
 (defn randomise-weights
   [cppn]
   (let [edge-list (for [[from m] (:edges cppn)
@@ -184,13 +207,11 @@
                     [from to])]
     (reduce (fn [cppn edge]
               (assoc-in cppn (into [:edges] edge)
-                        (* (rand-skew 10 2) (rand-sign))))
+                        (rand-weight)))
             cppn
             edge-list)))
 
-(def waypoints
-  (let [xs [0.2 0.5 1.0 2.5 10.0]]
-    (vec (concat xs (map - xs)))))
+;;; weight-space tours
 
 (defn smooth-step
   [z]
@@ -213,7 +234,7 @@
                     [from to])
         selected-edge (rand-nth edge-list)
         origin-w (get-in (:edges cppn) selected-edge)
-        target-w (rand-nth waypoints)]
+        target-w (rand-weight)]
     {:edge selected-edge
      :origin-w origin-w
      :target-w target-w

@@ -17,9 +17,9 @@
      (- (.-clientY e) (.-top r))]))
 
 (defn cppn-svg
-  [cppn event-c]
+  [cppn selection event-c]
   (let [strata (cppnx/cppn-strata cppn)
-        row-px 80
+        row-px 70
         height-px (* row-px (count strata))
         width-px 400
         radius-x (/ width-px 18)
@@ -36,7 +36,11 @@
         drag-move (fn [e]
                     (when @dragging
                       (let [[x y] (offset-from-svg e)]
-                        (swap! dragging assoc :at [x y]))))]
+                        (swap! dragging assoc :at [x y]))))
+        bg-click (fn [e]
+                   (.preventDefault e)
+                   (put! event-c {:event :select
+                                  :node nil}))]
     [:svg.cppn-graph
      {:style {:width "100%"
               :height (str height-px "px")
@@ -45,7 +49,8 @@
       :onMouseMove drag-move
       :onTouchMove drag-move
       :onMouseLeave (fn [e] (reset! dragging nil))
-      :onMouseUp (fn [e] (reset! dragging nil))}
+      :onMouseUp (fn [e] (reset! dragging nil))
+      :onClick bg-click}
      ;; edges
      (into
       [:g]
@@ -70,14 +75,22 @@
      (into
       [:g]
       (for [[node info] by-node
-            :let [drag-start (fn [e]
+            :let [valid-drop? (fn []
+                                (let [from (:node @dragging)
+                                      output? (:outputs cppn)
+                                      input? (:inputs cppn)]
+                                  (and (not= from node)
+                                       (not (and (output? from) (output? node)))
+                                       (not (and (input? from) (input? node))))))
+                  drag-start (fn [e]
                                (let [[x y] (offset-from-svg e)]
                                  (reset! dragging {:node node
                                                    :at [x y]})))
                   drag-enter (fn [e]
                                (when @dragging
                                  (.preventDefault e)
-                                 (swap! dragging assoc :on-target? true)))
+                                 (when (valid-drop?)
+                                   (swap! dragging assoc :on-target? true))))
                   drag-touch (fn [e]
                                (if @dragging (drag-enter e) (drag-start e)))
                   drag-leave (fn [e]
@@ -86,13 +99,13 @@
                                  (swap! dragging assoc :on-target? false)))
                   drop (fn [e]
                          (.preventDefault e)
-                         (let [from (:node @dragging)]
-                           (when (not= from node)
-                             (put! event-c {:event :link
-                                            :from from
-                                            :to node}))))
+                         (when (valid-drop?)
+                           (put! event-c {:event :link
+                                          :from (:node @dragging)
+                                          :to node})))
                   click (fn [e]
                           (.preventDefault e)
+                          (.stopPropagation e)
                           (put! event-c {:event :select
                                          :node node}))]]
         [:g
@@ -101,8 +114,8 @@
            :cy (:y info)
            :rx radius-x
            :ry radius-y
-           :fill "#eee"
-           :stroke "#ddd"
+           :fill (if (= selection node) "#bdf" "#eee")
+           :stroke (if (= selection node) "#888" "#ddd")
            :stroke-width "1"
            ;; note - SVG doesn't support actual drag&drop events
            :onMouseDown drag-start

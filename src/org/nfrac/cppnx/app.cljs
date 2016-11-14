@@ -19,7 +19,7 @@
   (atom {:cppn cppnx/example-cppn}))
 
 (defonce ui-state
-  (atom {}))
+  (atom {:selection nil}))
 
 (defonce undo-buffer
   (atom ()))
@@ -65,6 +65,7 @@
                   :select
                   (fn [s]
                     (println "select event" m)
+                    (swap! ui-state assoc :selection (:node m))
                     s)
                   :link
                   (fn [s]
@@ -79,32 +80,47 @@
            (swap-advance! app-state f))
         (recur)))
     (fn [_ _]
-      (let [cppn (:cppn @app-state)]
+      (let [cppn (:cppn @app-state)
+            freeze? (:tour cppn)
+            disabled (when freeze? "disabled")]
         [:div
           [:div.row
             [:div.col-lg-12
-              [svg/cppn-svg cppn svg-events-c]]]
+              [svg/cppn-svg cppn (:selection @ui-state) svg-events-c]]]
+          (when-let [sel (:selection @ui-state)]
+            [:div.row
+             [:div.col-lg-12
+              [:div.panel.panel-primary
+               [:div.panel-heading
+                [:h4.panel-title "Selected node"]]
+               [:button.btn.btn-default
+                {:on-click (fn [e]
+                             (swap-advance! app-state update :cppn
+                                            cppnx/delete-node sel))
+                 :disabled (when (or freeze? (not (contains? (:nodes cppn) sel)))
+                             "disabled")}
+                "Delete"]]]])
           [:div.row
             [:div.col-sm-3
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
                                            cppnx/mutate-append-node))
-                :disabled (when (:tour cppn) "disabled")}
+                :disabled disabled}
                "Append node"]]
             [:div.col-sm-3
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
                                            cppnx/mutate-add-conn))
-                :disabled (when (:tour cppn) "disabled")}
+                :disabled disabled}
                "Add connection"]]
             [:div.col-sm-3
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
                                            cppnx/mutate-rewire-conn))
-                :disabled (when (:tour cppn) "disabled")}
+                :disabled disabled}
                "Rewire connection"]]]
           [:div.row
             [:div.col-sm-3
@@ -112,7 +128,7 @@
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
                                            cppnx/randomise-weights))
-                :disabled (when (:tour cppn) "disabled")}
+                :disabled disabled}
                "Random weights"]]
             [:div.col-sm-3
               [:button.btn.btn-default
@@ -120,7 +136,7 @@
                             (swap-advance! app-state update :cppn
                                            cppnx/init-isolated-weights-tour)
                             (tour-go app-state))
-                :disabled (when (:tour cppn) "disabled")}
+                :disabled disabled}
                "Simple weight tour"]]
             [:div.col-sm-3
               [:button.btn.btn-default
@@ -128,7 +144,7 @@
                             (swap-advance! app-state update :cppn
                                            cppnx/init-pair-weights-tour)
                             (tour-go app-state))
-                :disabled (when (:tour cppn) "disabled")}
+                :disabled disabled}
                "Pair weight tour"]]
             (when (:tour cppn)
               [:div.col-sm-3
