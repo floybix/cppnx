@@ -103,13 +103,6 @@
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
-                                           cppnx/mutate-rewire-output))
-                :disabled (when (:tour cppn) "disabled")}
-               "Rewire output"]]
-            [:div.col-sm-3
-              [:button.btn.btn-default
-               {:on-click (fn [e]
-                            (swap-advance! app-state update :cppn
                                            cppnx/mutate-rewire-conn))
                 :disabled (when (:tour cppn) "disabled")}
                "Rewire connection"]]]

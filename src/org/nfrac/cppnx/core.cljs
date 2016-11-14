@@ -8,36 +8,39 @@
 ;; so all non-input nodes must have at least one input edge.
 ;; and cycles are not allowed.
 (def example-cppn
-  {:inputs [:bias :x :y :d]
+  {:inputs #{:bias :x :y :d}
+   :outputs #{:h :s :v}
    :nodes {:na :linear
            :nb :gaussian
-           :nc :linear}
+           :nc :sine
+           :nd :sigmoid}
    :edges {:na {:d 1.0}
            :nb {:y 1.0}
-           :nc {:nb 0.5
-                :y -1.0}}
-   :out-nodes {:h :na
-               :s :nc
-               :v :nb}
+           :nc {:bias 1.0}
+           :nd {:nc 0.1}
+           :h {:na 1.0}
+           :s {:nb 0.5
+               :y -1.0}
+           :v {:nb 1.0}}
    :topology-hash 0})
 
 (def all-node-types
   #{:linear :sine :gaussian :sigmoid :sawtooth})
 
 (s/def ::node-id (-> any? (s/with-gen #(s/gen ident?))))
-(s/def ::inputs (s/coll-of ::node-id, :min-count 1, :distinct true))
+(s/def ::inputs (s/coll-of ::node-id, :min-count 1, :kind set?))
+(s/def ::outputs (s/coll-of ::node-id, :min-count 1, :kind set?))
 (s/def ::nodes (s/map-of ::node-id all-node-types, :min-count 1))
 (s/def ::weight (s/double-in :min -100 :max 100 :NaN? false))
 (s/def ::node-edges (s/map-of ::node-id ::weight))
 (s/def ::edges (s/map-of ::node-id ::node-edges, :min-count 1))
-(s/def ::out-nodes (s/map-of keyword? ::node-id, :min-count 1))
 (s/def ::topology-hash int?)
 
 (s/def ::cppn
   (s/keys :req-un [::inputs
+                   ::outputs
                    ::nodes
                    ::edges
-                   ::out-nodes
                    ::topology-hash]))
 
 ;;; cppns
@@ -92,12 +95,23 @@
 
 (defn cppn-graph
   [cppn]
-  (graph/directed-graph (concat (:inputs cppn) (keys (:nodes cppn)))
+  (graph/directed-graph (concat (:inputs cppn)
+                                (keys (:nodes cppn))
+                                (:outputs cppn))
                         (remap keys (:edges cppn))))
 
-(defn cppn-strata
+(defn cppn-graph-no-outputs
   [cppn]
-  (graph/dependency-list (cppn-graph cppn)))
+  (graph/directed-graph (concat (:inputs cppn)
+                                (keys (:nodes cppn)))
+                        (remap keys (apply dissoc (:edges cppn) (:outputs cppn)))))
+
+(defn cppn-strata
+  "A list of sets. The first set contains the inputs, the last
+  the outputs."
+  [cppn]
+  (concat (graph/dependency-list (cppn-graph-no-outputs cppn))
+          [(:outputs cppn)]))
 
 (defn downstream
   "Returns the collection of downstream nodes including self."
@@ -113,11 +127,13 @@
   (let [types all-node-types
         type (rand-nth (seq types))
         id (keyword (gensym "node"))
-        [output onode] (rand-nth (seq (:out-nodes cppn)))]
+        to1 (rand-nth (seq (:outputs cppn)))
+        [from1 w1] (rand-nth (seq (get-in cppn [:edges to1])))]
     (-> cppn
         (update :nodes assoc id type)
-        (update :edges assoc id {onode 1.0})
-        (update :out-nodes assoc output id)
+        (update-in [:edges to1] dissoc from1)
+        (update :edges assoc id {from1 w1})
+        (update :edges assoc to1 {id 1.0})
         (update :topology-hash inc))))
 
 (defn mutate-add-conn
@@ -145,14 +161,6 @@
           (assoc-in [:edges to-node (rand-nth (seq candidates))] w)
           (update :topology-hash inc))
       cppn)))
-
-(defn mutate-rewire-output
-  [cppn]
-  (let [[output onode] (rand-nth (seq (:out-nodes cppn)))
-        node (rand-nth (keys (dissoc (:nodes cppn) onode)))]
-    (-> cppn
-        (assoc-in [:out-nodes output] node)
-        (update :topology-hash inc))))
 
 (defn link-nodes
   "Attempt to link node a -> b,
@@ -262,8 +270,7 @@
   (let [strata (cppn-strata cppn)
         sorted-nids (apply concat (rest strata))
         node-exprs (reduce (fn [m nid]
-                             (let [node-type (get-in cppn [:nodes nid])
-                                   _ (println nid node-type)
+                             (let [node-type (get-in cppn [:nodes nid] :linear)
                                    ideps (get-in cppn [:edges nid])
                                    sum (->> ideps
                                             (map (fn [[from-id w]]
@@ -275,4 +282,4 @@
                            in-exprs
                            ;; topological sort
                            sorted-nids)]
-    (remap node-exprs (:out-nodes cppn))))
+    node-exprs))

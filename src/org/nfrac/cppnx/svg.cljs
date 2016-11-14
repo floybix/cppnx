@@ -20,25 +20,19 @@
   [cppn event-c]
   (let [strata (cppnx/cppn-strata cppn)
         row-px 80
-        height-px (* row-px (inc (count strata)))
+        height-px (* row-px (count strata))
         width-px 400
         radius-x (/ width-px 18)
         radius-y (* row-px 0.2)
         by-node (into
                  {}
-                 (concat
-                  (for [[row nodes] (indexed strata)
-                        [j node] (indexed (sort nodes))]
-                    [node {:x (+ (* width-px (/ (inc j) (inc (count nodes))))
-                                 (* (mod row 3) (* width-px 0.02)))
-                           :y (* row-px (+ row 0.5))
-                           :deps (-> cppn :edges (get node))
-                           :label (-> cppn :nodes (get node node) name)}])
-                  (for [[j [node dep]] (indexed (:out-nodes cppn))]
-                    [node {:x (* width-px (/ (inc j) (inc (count (:out-nodes cppn)))))
-                           :y (* row-px (+ (count strata) 0.5))
-                           :deps {dep 1.0}
-                           :label (name node)}])))
+                 (for [[row nodes] (indexed strata)
+                       [j node] (indexed (sort nodes))]
+                   [node {:x (+ (* width-px (/ (inc j) (inc (count nodes))))
+                                (* (mod row 3) (* width-px 0.02)))
+                          :y (* row-px (+ row 0.5))
+                          :deps (-> cppn :edges (get node))
+                          :label (-> cppn :nodes (get node node) name)}]))
         drag-move (fn [e]
                     (when @dragging
                       (let [[x y] (offset-from-svg e)]
