@@ -36,23 +36,52 @@
     (reset! redo-buffer ()))
   (apply swap! ref f more))
 
-(defn tour-go
-  [app-state]
-  (swap! app-state assoc :animating? true
-         :last-rendered (.getTime (js/Date.)))
-  (animate/animate
-   app-state
-   (fn [state]
-     (let [time-now (.getTime (js/Date.))
-           elapsed (- time-now (:last-rendered state))
-           seconds-per-move 1.0]
-       (-> state
-           (update :cppn cppnx/step-weights-tour
-                   (/ elapsed 1000.0 seconds-per-move))
-           (assoc :last-rendered time-now))))
-   (fn [state]
-     ;; react handles redrawing
-     nil)))
+(def gl-canvas-class "cppnx-main-canvas")
+
+(defn animate [state step-fn draw-fn]
+  (js/requestAnimationFrame
+   (fn [time]
+     (when-not (:stop! @state)
+       (let [next-value (swap! state step-fn)]
+         (draw-fn next-value)
+         (animate state step-fn draw-fn))))))
+
+;; TODO: keep history of weight targets, allow reverse (fleeting glimpses!)
+
+(defn tour-go!
+  [app-state ui-state tour]
+  (let [gl-info-ref (clojure.core/atom {})
+        el (dom/getElementByClass gl-canvas-class)
+        gl (.getContext el "webgl")]
+    (swap! ui-state assoc :animating? true
+           :gl-info-ref gl-info-ref
+           :anim-start (.getTime (js/Date.)))
+    (reset! gl-info-ref
+            (assoc (gl-img/setup gl @app-state)
+                   :tour tour
+                   :last-rendered (.getTime (js/Date.))))
+    (animate
+     gl-info-ref
+     (fn [info]
+       (let [time-now (.getTime (js/Date.))
+             elapsed (- time-now (:last-rendered info))
+             seconds-per-move 1.3
+             dt (/ elapsed 1000.0 seconds-per-move)
+             tour (cppnx/step-weights-tour (:tour info) dt)]
+         (-> info
+             (assoc :tour tour
+                    :last-rendered time-now))))
+     (fn [info]
+       (gl-img/render info (:weights (:tour info)))))))
+
+(defn tour-stop!
+  [app-state ui-state]
+  (let [gl-info-ref (:gl-info-ref @ui-state)
+        weights (:weights (:tour @gl-info-ref))]
+    (swap! gl-info-ref assoc :stop! true)
+    (swap-advance! app-state
+                   update :cppn cppnx/set-cppn-weights weights)
+    (swap! ui-state dissoc :animating? :gl-info-ref)))
 
 (defn settings-pane
   [app-state ui-state]
@@ -64,12 +93,10 @@
               f (case (:event m)
                   :select
                   (fn [s]
-                    (println "select event" m)
                     (swap! ui-state assoc :selection (:node m))
                     s)
                   :link
                   (fn [s]
-                    (println "link event " m)
                     (cond
                       (get-in s [:cppn :edges from to])
                       (update-in s [:cppn :edges from] dissoc to)
@@ -81,7 +108,7 @@
         (recur)))
     (fn [_ _]
       (let [cppn (:cppn @app-state)
-            freeze? (:tour cppn)
+            freeze? (:animating? @ui-state)
             disabled (when freeze? "disabled")]
         [:div
           [:div.row
@@ -133,27 +160,22 @@
             [:div.col-sm-3
               [:button.btn.btn-default
                {:on-click (fn [e]
-                            (swap-advance! app-state update :cppn
-                                           cppnx/init-isolated-weights-tour)
-                            (tour-go app-state))
+                            (tour-go! app-state ui-state
+                                      (cppnx/init-weights-tour cppn 1)))
                 :disabled disabled}
-               "Simple weight tour"]]
+               "Weight tour (ones)"]]
             [:div.col-sm-3
-              [:button.btn.btn-default
+              [:button.btn.btn-primary
                {:on-click (fn [e]
-                            (swap-advance! app-state update :cppn
-                                           cppnx/init-pair-weights-tour)
-                            (tour-go app-state))
+                            (tour-go! app-state ui-state
+                                      (cppnx/init-weights-tour cppn 3)))
                 :disabled disabled}
-               "Pair weight tour"]]
-            (when (:tour cppn)
+               "Weight tour (triples)"]]
+            (when (:animating? @ui-state)
               [:div.col-sm-3
                 [:button.btn.btn-danger
                  {:on-click (fn [e]
-                              (swap-advance! app-state
-                                             (fn [state]
-                                               (-> (update state :cppn dissoc :tour)
-                                                   (dissoc :animating? :last-rendered)))))}
+                              (tour-stop! app-state ui-state))}
                  "Stop tour"]])]
           [:div.row
             [:p
@@ -168,14 +190,15 @@
      [:div.row
       [:div.col-lg-12
        [glcanvas
-        {:style {:border "1px black"
+        {:class gl-canvas-class
+         :style {:border "1px black"
                  :width "600px"
                  :height "600px"}}
         600 600
         [app-state]
         (fn [gl]
-          (let [pgm (gl-img/setup gl @app-state)]
-            (gl-img/render gl pgm (:weights @app-state))))]]]]))
+          (let [info (gl-img/setup gl @app-state)]
+            (gl-img/render info (:ws info))))]]]]))
 
 (defn navbar
   [app-state ui-state]

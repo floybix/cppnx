@@ -227,15 +227,30 @@
   [from to z]
   (+ from (* z (- to from))))
 
-(defn init-1d-motion
+(defn edge-list
   [cppn]
-  (let [edge-list (for [[from m] (:edges cppn)
-                        [to w] m]
-                    [from to])
-        selected-edge (rand-nth edge-list)
-        origin-w (get-in (:edges cppn) selected-edge)
+  (sort
+   (for [[to m] (:edges cppn)
+         from (keys m)]
+    [to from])))
+
+(defn cppn-weights
+  [cppn]
+  (mapv #(get-in (:edges cppn) %) (edge-list cppn)))
+
+(defn set-cppn-weights
+  [cppn ws]
+  (reduce (fn [cppn [[to from] w]]
+            (assoc-in cppn [:edges to from] w))
+          cppn
+          (map vector (edge-list cppn) ws)))
+
+(defn init-1d-motion
+  [ws index]
+  (let [
+        origin-w (nth ws index)
         target-w (rand-weight)]
-    {:edge selected-edge
+    {:index index
      :origin-w origin-w
      :target-w target-w
      :value origin-w
@@ -250,54 +265,49 @@
            :time-fraction new-time
            :done? (>= new-time 1.0))))
 
-(defn init-isolated-weights-tour
-  [cppn]
-  (assoc cppn
-         :tour [(init-1d-motion cppn)]))
-
-(defn init-pair-weights-tour
-  [cppn]
-  (assoc cppn
-         :tour [(init-1d-motion cppn)
-                (assoc (init-1d-motion cppn) :done? true)]))
-
-(defn apply-tour
-  [cppn tour]
-  (reduce (fn [cppn motion]
-            (assoc-in cppn (into [:edges] (:edge motion))
-                      (:value motion)))
-          cppn
-          tour))
+(defn init-weights-tour
+  [cppn concurrency]
+  (let [ws (cppn-weights cppn)
+        is (take concurrency (shuffle (range (count ws))))]
+    {:weights ws
+     :motions (mapv #(init-1d-motion ws %) is)}))
 
 (defn step-weights-tour
-  [cppn dt]
-  (let [concurrency (count (:tour cppn))
+  [tour dt]
+  (let [concurrency (count (:motions tour))
         ;; replace any completed motions with new random ones
-        ongoing (remove :done? (:tour cppn))
-        ntour (reduce (fn [tour i]
-                        (let [m (init-1d-motion cppn)]
+        ongoing (remove :done? (:motions tour))
+        n (count (:weights tour))
+        renewed (reduce (fn [motions i]
                           ;; make sure not moving the same parameter twice
-                          (if (contains? (set (map :edge tour)) (:edge m))
-                            (recur tour i)
-                            (conj tour m))))
-                      ongoing
-                      (range (- concurrency (count ongoing))))
-        tour (map #(step-1d-motion % dt) ntour)]
-    (-> (apply-tour cppn tour)
-        (assoc :tour tour))))
+                          (let [ok (remove (set (map :index motions)) (range n))
+                                m (init-1d-motion (:weights tour) (rand-nth ok))]
+                            (conj motions m)))
+                        ongoing
+                        (range (- concurrency (count ongoing))))
+        motions (map #(step-1d-motion % dt) renewed)]
+    {:weights (reduce (fn [ws m]
+                        (assoc ws (:index m) (:value m)))
+                      (:weights tour)
+                      motions)
+     :motions motions}))
 
 (defn build-cppn-vals
-  [cppn in-exprs]
+  [cppn in-exprs w-exprs]
   (let [strata (cppn-strata cppn)
         sorted-nids (apply concat (rest strata))
         node-exprs (reduce (fn [m nid]
                              (let [node-type (get-in cppn [:nodes nid] :linear)
-                                   ideps (get-in cppn [:edges nid])
-                                   sum (->> ideps
-                                            (map (fn [[from-id w]]
-                                                   (g/* w (get m from-id))))
+                                   deps (keys (get-in cppn [:edges nid]))
+                                   sum (->> deps
+                                            (map (fn [k]
+                                                   (let [w (get w-exprs [nid k])]
+                                                     (g/* w (get m k)))))
                                             (reduce g/+))
-                                   sumw (reduce g/+ (map g/abs (vals ideps)))
+                                   sumw (->> deps
+                                             (map (fn [k]
+                                                    (g/abs (get w-exprs [nid k]))))
+                                             (reduce g/+))
                                    expr (node-glsl node-type sum sumw)]
                                 (assoc m nid expr)))
                            in-exprs
