@@ -3,12 +3,12 @@
             [org.nfrac.cppnx.helpers :refer [glcanvas]]
             [org.nfrac.cppnx.webgl-image :as gl-img]
             [org.nfrac.cppnx.webgl-lines :as gl-lines]
-            [org.nfrac.cppnx.animate :as animate]
             [org.nfrac.cppnx.svg :as svg]
             [fipp.edn]
             [monet.canvas :as c]
             [reagent.core :as reagent :refer [atom]]
             [goog.dom :as dom]
+            [goog.dom.forms :as forms]
             [goog.webgl :as ggl]
             [clojure.core.async :as async :refer [<! put!]])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
@@ -19,7 +19,9 @@
   (atom {:cppn cppnx/example-cppn}))
 
 (defonce ui-state
-  (atom {:selection nil}))
+  (atom {:selection nil
+         :scrub 0
+         :scrub-detail 0}))
 
 (defonce undo-buffer
   (atom ()))
@@ -42,7 +44,9 @@
   (js/requestAnimationFrame
    (fn [time]
      (when-not (:stop! @state)
-       (let [next-value (swap! state step-fn)]
+       (let [next-value (if (:paused? @ui-state)
+                          @state
+                          (swap! state step-fn))]
          (draw-fn next-value)
          (animate state step-fn draw-fn))))))
 
@@ -53,7 +57,11 @@
   (let [gl-info-ref (clojure.core/atom {})
         el (dom/getElementByClass gl-canvas-class)
         gl (.getContext el "webgl")]
-    (swap! ui-state assoc :animating? true
+    (swap! ui-state assoc
+           :animating? true
+           :paused? false
+           :scrub 0
+           :scrub-detail 0
            :gl-info-ref gl-info-ref
            :anim-start (.getTime (js/Date.)))
     (reset! gl-info-ref
@@ -66,13 +74,33 @@
        (let [time-now (.getTime (js/Date.))
              elapsed (- time-now (:last-rendered info))
              seconds-per-move 1.3
-             dt (/ elapsed 1000.0 seconds-per-move)
+             dt (min 0.1 (/ elapsed 1000.0 seconds-per-move))
              tour (cppnx/step-weights-tour (:tour info) dt)]
          (-> info
              (assoc :tour tour
                     :last-rendered time-now))))
      (fn [info]
        (gl-img/render info (:weights (:tour info)))))))
+
+(defn tour-scrub!
+  [ui-state]
+  (let [gl-info-ref (:gl-info-ref @ui-state)
+        tour (:tour @gl-info-ref)
+        wp (:waypoints tour)
+        at-frac (+ (/ (- (:scrub @ui-state)) 1000)
+                   (/ (- (:scrub-detail @ui-state)) 1000 (count wp) 0.5))
+        wpf (* at-frac (dec (count wp)))
+        wpi (Math/floor wpf)
+        [to-w from-w] (take 2 (drop wpi wp))
+        motions (reduce (fn [ms [i from to]]
+                          (if (== from to)
+                            ms
+                            (conj ms (cppnx/motion i from to))))
+                        []
+                        (map vector (range) from-w to-w))
+        t (- 1.0 (- wpf wpi))
+        now-w (cppnx/apply-motions from-w motions t)]
+    (swap! gl-info-ref assoc-in [:tour :weights] now-w)))
 
 (defn tour-stop!
   [app-state ui-state]
@@ -111,9 +139,82 @@
             freeze? (:animating? @ui-state)
             disabled (when freeze? "disabled")]
         [:div
+          ;; Weights
+          (when-not (:animating? @ui-state)
+            [:div.row
+             [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (swap-advance! app-state update :cppn
+                                           cppnx/randomise-weights))
+                :disabled disabled}
+               "Random weights"]]
+             [:div.col-sm-3
+              [:button.btn.btn-default
+               {:on-click (fn [e]
+                            (tour-go! app-state ui-state
+                                      (cppnx/init-weights-tour cppn 1)))
+                :disabled disabled}
+               "Weight tour (ones)"]]
+             [:div.col-sm-3
+              [:button.btn.btn-primary
+               {:on-click (fn [e]
+                            (tour-go! app-state ui-state
+                                      (cppnx/init-weights-tour cppn 3)))
+                :disabled disabled}
+               "Weight tour (triples)"]]])
+          ;; In-tour controls
+          (when (:animating? @ui-state)
+            [:div.row
+             [:div.col-sm-3
+              [:div.form-inline
+               [:button.btn.btn-danger
+                {:on-click (fn [e]
+                             (tour-stop! app-state ui-state))}
+                "End"]
+               (if (:paused? @ui-state)
+                 [:button.btn.btn-success
+                  {:on-click (fn [e]
+                               (swap! ui-state assoc :paused? false :scrub 0))}
+                  [:span.glyphicon.glyphicon-play {:aria-hidden "true"}]
+                  "Play"]
+                 [:button.btn.btn-warning
+                  {:on-click (fn [e]
+                               (swap! ui-state assoc :paused? true))}
+                  [:span.glyphicon.glyphicon-pause {:aria-hidden "true"}]
+                  "Pause"])]]
+             [:div.col-sm-9
+               [:div.form-horizontal
+                [:label "global: "]
+                [:input
+                 {:style {:display "inline-block"
+                          :width "85%"}
+                  :type "range"
+                  :min -1000
+                  :max 0
+                  :value (:scrub @ui-state)
+                  :on-change (fn [e]
+                               (let [x (-> e .-target forms/getValue)]
+                                 (swap! ui-state assoc :scrub x :paused? true)
+                                 (tour-scrub! ui-state)))}]]
+               [:div.form-horizontal
+                [:label "detail: "]
+                [:input
+                 {:style {:display "inline-block"
+                          :width "85%"}
+                  :type "range"
+                  :min -1000
+                  :max 0
+                  :value (:scrub-detail @ui-state)
+                  :on-change (fn [e]
+                               (let [x (-> e .-target forms/getValue)]
+                                 (swap! ui-state assoc :scrub-detail x :paused? true)
+                                 (tour-scrub! ui-state)))}]]]])
+          ;; SVG
           [:div.row
             [:div.col-lg-12
               [svg/cppn-svg cppn (:selection @ui-state) svg-events-c]]]
+          ;; Selection controls
           (when-let [sel (:selection @ui-state)]
             [:div.row
              [:div.col-lg-12
@@ -123,10 +224,12 @@
                [:button.btn.btn-default
                 {:on-click (fn [e]
                              (swap-advance! app-state update :cppn
-                                            cppnx/delete-node sel))
+                                            cppnx/delete-node sel)
+                             (swap! ui-state assoc :selection nil))
                  :disabled (when (or freeze? (not (contains? (:nodes cppn) sel)))
                              "disabled")}
                 "Delete"]]]])
+          ;; Topology controls
           [:div.row
             [:div.col-sm-3
               [:button.btn.btn-default
@@ -149,34 +252,7 @@
                                            cppnx/mutate-rewire-conn))
                 :disabled disabled}
                "Rewire connection"]]]
-          [:div.row
-            [:div.col-sm-3
-              [:button.btn.btn-default
-               {:on-click (fn [e]
-                            (swap-advance! app-state update :cppn
-                                           cppnx/randomise-weights))
-                :disabled disabled}
-               "Random weights"]]
-            [:div.col-sm-3
-              [:button.btn.btn-default
-               {:on-click (fn [e]
-                            (tour-go! app-state ui-state
-                                      (cppnx/init-weights-tour cppn 1)))
-                :disabled disabled}
-               "Weight tour (ones)"]]
-            [:div.col-sm-3
-              [:button.btn.btn-primary
-               {:on-click (fn [e]
-                            (tour-go! app-state ui-state
-                                      (cppnx/init-weights-tour cppn 3)))
-                :disabled disabled}
-               "Weight tour (triples)"]]
-            (when (:animating? @ui-state)
-              [:div.col-sm-3
-                [:button.btn.btn-danger
-                 {:on-click (fn [e]
-                              (tour-stop! app-state ui-state))}
-                 "Stop tour"]])]
+          ;; Source
           [:div.row
             [:p
               "CPPN data"]
@@ -250,9 +326,9 @@
    [navbar app-state ui-state]
    [:div.container-fluid
     [:div.row
-     [:div.col-lg-8.col-md-6
+     [:div.col-lg-6.col-md-8
       [view-pane app-state ui-state]]
-     [:div.col-lg-4.col-md-6
+     [:div.col-lg-6.col-md-4
       [settings-pane app-state ui-state]]]]])
 
 (reagent/render-component [app-pane app-state ui-state]

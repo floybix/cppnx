@@ -10,18 +10,13 @@
 (def example-cppn
   {:inputs #{:bias :x :y :d}
    :outputs #{:h :s :v}
-   :nodes {:na :linear
-           :nb :gaussian
-           :nc :sine
-           :nd :sigmoid}
-   :edges {:na {:d 1.0}
-           :nb {:y 1.0}
-           :nc {:bias 1.0}
-           :nd {:nc 0.1}
-           :h {:na 1.0}
-           :s {:nb 0.5
-               :y -1.0}
-           :v {:nb 1.0}}
+   :nodes {:init :gaussian}
+   :edges {:init {:d 1.0
+                  :y 1.0}
+           :h {:init 1.0}
+           :s {:init 0.5
+               :x -1.0}
+           :v {:init 1.0}}
    :topology-hash 0})
 
 (def all-node-types
@@ -107,8 +102,8 @@
                         (remap keys (apply dissoc (:edges cppn) (:outputs cppn)))))
 
 (defn cppn-strata
-  "A list of sets. The first set contains the inputs, the last
-  the outputs."
+  "A list of sets. The first set contains the only inputs, the last only the
+  outputs."
   [cppn]
   (concat (graph/dependency-list (cppn-graph-no-outputs cppn))
           [(:outputs cppn)]))
@@ -131,9 +126,9 @@
         [from1 w1] (rand-nth (seq (get-in cppn [:edges to1])))]
     (-> cppn
         (update :nodes assoc id type)
-        (update-in [:edges to1] dissoc from1)
         (update :edges assoc id {from1 w1})
-        (update :edges assoc to1 {id 1.0})
+        (update-in [:edges to1] dissoc from1)
+        (update-in [:edges to1] assoc id 1.0)
         (update :topology-hash inc))))
 
 (defn mutate-add-conn
@@ -245,52 +240,56 @@
           cppn
           (map vector (edge-list cppn) ws)))
 
-(defn init-1d-motion
-  [ws index]
-  (let [
-        origin-w (nth ws index)
-        target-w (rand-weight)]
-    {:index index
-     :origin-w origin-w
-     :target-w target-w
-     :value origin-w
-     :time-fraction 0.0}))
+(defn motion
+  [index from-val to-val]
+  {:index index
+   :from-val from-val
+   :to-val to-val})
 
-(defn step-1d-motion
-  [motion time-inc]
-  (let [{:keys [origin-w target-w time-fraction]} motion
-        new-time (+ time-fraction time-inc)]
-    (assoc motion
-           :value (interp origin-w target-w (smooth-step new-time))
-           :time-fraction new-time
-           :done? (>= new-time 1.0))))
+(defn rand-motion
+  [ws index]
+  (let [from-val (nth ws index)
+        to-val (rand-weight)]
+    (motion index from-val to-val)))
+
+(defn motion-at
+  [motion time-frac]
+  (let [{:keys [from-val to-val]} motion]
+    (interp from-val to-val (smooth-step time-frac))))
 
 (defn init-weights-tour
   [cppn concurrency]
   (let [ws (cppn-weights cppn)
         is (take concurrency (shuffle (range (count ws))))]
     {:weights ws
-     :motions (mapv #(init-1d-motion ws %) is)}))
+     :motion-frac 0.0
+     :motions (mapv #(rand-motion ws %) is)
+     :waypoints (list ws)}))
+
+(defn apply-motions
+  [ws motions motion-frac]
+  (reduce (fn [ws m]
+            (assoc ws (:index m) (motion-at m motion-frac)))
+          ws
+          motions))
 
 (defn step-weights-tour
   [tour dt]
-  (let [concurrency (count (:motions tour))
-        ;; replace any completed motions with new random ones
-        ongoing (remove :done? (:motions tour))
-        n (count (:weights tour))
-        renewed (reduce (fn [motions i]
-                          ;; make sure not moving the same parameter twice
-                          (let [ok (remove (set (map :index motions)) (range n))
-                                m (init-1d-motion (:weights tour) (rand-nth ok))]
-                            (conj motions m)))
-                        ongoing
-                        (range (- concurrency (count ongoing))))
-        motions (map #(step-1d-motion % dt) renewed)]
-    {:weights (reduce (fn [ws m]
-                        (assoc ws (:index m) (:value m)))
-                      (:weights tour)
-                      motions)
-     :motions motions}))
+  (let [concurrency (count (:motions tour))]
+    (if (>= (:motion-frac tour) 1.0)
+      ;; record waypoint and choose new motions
+      (let [ws (:weights tour)
+            is (take concurrency (shuffle (range (count ws))))]
+        (-> tour
+            (update :waypoints conj (:weights tour))
+            (assoc :motion-frac 0.0)
+            (assoc :motions (mapv #(rand-motion ws %) is))))
+      ;; just a step
+      (let [t (+ (:motion-frac tour) dt)
+            ws (apply-motions (:weights tour) (:motions tour) t)]
+        (-> tour
+            (assoc :weights ws)
+            (assoc :motion-frac t))))))
 
 (defn build-cppn-vals
   [cppn in-exprs w-exprs]

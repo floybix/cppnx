@@ -1,6 +1,6 @@
 # cppnx
 
-FIXME: Write a one-line description of your library/project.
+A web ui for exploring [Compositional Pattern Producing Networks](http://eplex.cs.ucf.edu/publications/2007/stanley-gpem07).
 
 ## Overview
 
@@ -34,6 +34,6 @@ get live reloading, nor a REPL.
 
 ## License
 
-Copyright © 2014 FIXME
+Copyright © 2016 Felix Andrews
 
 Distributed under the Eclipse Public License either version 1.0 or (at your option) any later version.
