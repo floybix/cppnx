@@ -75,9 +75,14 @@
 
 (defmethod node-glsl :sawtooth
   [_ sum _]
-  (-> (g/fract sum)
-      (g/* 2.0)
-      (g/- 1.0)))
+  (let [a (g/fract sum)
+        ;; could use just 'fract' but let's do a little smoothing
+        peak 0.975
+        truncd (g/min a peak)
+        over (g/- a truncd)]
+    (-> (g/- truncd (g/* over (/ peak (- 1.0 peak))))
+        (g/* 2.0)
+        (g/- 1.0))))
 
 ;;; cppn wrangling
 
