@@ -16,7 +16,8 @@
 (enable-console-print!)
 
 (defonce app-state
-  (atom {:cppn cppnx/example-cppn}))
+  (atom {:domain :image
+         :cppn gl-img/start-cppn}))
 
 (defonce ui-state
   (atom {:selection nil
@@ -38,6 +39,26 @@
     (reset! redo-buffer ()))
   (apply swap! ref f more))
 
+(def all-domains [:image :lines])
+
+(defn init-cppn
+  [domain]
+  (case domain
+    :image gl-img/start-cppn
+    :lines gl-lines/start-cppn))
+
+(defn gl-setup
+  [gl state]
+  (case (:domain @app-state)
+    :image (gl-img/setup gl state)
+    :lines (gl-lines/setup gl state)))
+
+(defn gl-render
+  [info ws]
+  (case (:domain @app-state)
+    :image (gl-img/render info ws)
+    :lines (gl-lines/render info ws)))
+
 (def gl-canvas-class "cppnx-main-canvas")
 
 (defn animate [state step-fn draw-fn]
@@ -49,8 +70,6 @@
                           (swap! state step-fn))]
          (draw-fn next-value)
          (animate state step-fn draw-fn))))))
-
-;; TODO: keep history of weight targets, allow reverse (fleeting glimpses!)
 
 (defn tour-go!
   [app-state ui-state tour]
@@ -65,7 +84,7 @@
            :gl-info-ref gl-info-ref
            :anim-start (.getTime (js/Date.)))
     (reset! gl-info-ref
-            (assoc (gl-img/setup gl @app-state)
+            (assoc (gl-setup gl @app-state)
                    :tour tour
                    :last-rendered (.getTime (js/Date.))))
     (animate
@@ -80,7 +99,7 @@
              (assoc :tour tour
                     :last-rendered time-now))))
      (fn [info]
-       (gl-img/render info (:weights (:tour info)))))))
+       (gl-render info (:weights (:tour info)))))))
 
 (defn tour-scrub!
   [ui-state]
@@ -127,9 +146,9 @@
                   (fn [s]
                     (cond
                       (get-in s [:cppn :edges from to])
-                      (update-in s [:cppn :edges from] dissoc to)
+                      (update s :cppn cppnx/remove-edge from to)
                       (get-in s [:cppn :edges to from])
-                      (update-in s [:cppn :edges to] dissoc from)
+                      (update s :cppn cppnx/remove-edge to from)
                       :else
                       (update s :cppn cppnx/link-nodes from to))))]
            (swap-advance! app-state f))
@@ -273,8 +292,8 @@
         600 600
         [app-state]
         (fn [gl]
-          (let [info (gl-img/setup gl @app-state)]
-            (gl-img/render info (:ws info))))]]]]))
+          (let [info (gl-setup gl @app-state)]
+            (gl-render info (:ws info))))]]]]))
 
 (defn navbar
   [app-state ui-state]
@@ -318,7 +337,24 @@
         ;; timestep
         [:li
          [:p.navbar-text
-          (str "Foo")]]]]]]))
+          (str "Foo")]]
+        [:form.navbar-form.navbar-left
+         [:div.form-group
+          [:label
+           "Domain: "]
+          [:select.form-control
+           {:value (name (:domain @app-state))
+            :on-change (fn [e]
+                         (let [s (-> e .-target forms/getValue)
+                               domain (keyword s)]
+                           (swap! app-state assoc
+                                  :domain domain
+                                  :cppn (init-cppn domain))))}
+           (doall
+            (for [domain all-domains]
+              [:option {:key (name domain)
+                        :value (name domain)}
+               (name domain)]))]]]]]]]))
 
 (defn app-pane
   [app-state ui-state]

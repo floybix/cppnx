@@ -1,31 +1,23 @@
 (ns org.nfrac.cppnx.webgl-image
   (:require [org.nfrac.cppnx.core :as cppnx :refer [remap]]
             [org.nfrac.cppnx.util.algo-graph :as graph]
+            [org.nfrac.cppnx.webgl-common :refer [hsv2rgb-glsl]]
             [gamma.api :as g]
             [gamma.program :as p]
             [goog.dom :as gdom]
             [goog.webgl :as ggl]))
 
-(defn hsv2rgb-glsl
-  "from http://stackoverflow.com/a/17897228/202244
-
-vec3 hsv2rgb(vec3 c)
-{
-    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
-"
-  [h s v]
-  (let [K (g/vec4 1 (g/div 2.0 3.0) (g/div 1.0 3.0) 3.0)
-        p (-> (g/fract (g/+ (g/vec3 h h h) (g/swizzle K :xyz)))
-              (g/* 6.0)
-              (g/- (g/swizzle K :www))
-              (g/abs))]
-    (g/* v
-         (g/mix (g/swizzle K :xxx)
-                (g/clamp (g/- p (g/swizzle K :xxx)) 0.0 1.0)
-                s))))
+(def start-cppn
+  {:inputs #{:bias :x :y :d}
+   :outputs #{:h :s :v}
+   :nodes {:init :gaussian}
+   :edges {:init {:d 1.0
+                  :y 1.0}
+           :h {:init 1.0}
+           :s {:init 0.5
+               :x -1.0}
+           :v {:init 1.0}}
+   :topology-hash 0})
 
 (def a-position (g/attribute "a_VertexPosition" :vec2))
 

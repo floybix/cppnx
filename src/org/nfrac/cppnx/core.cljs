@@ -68,8 +68,7 @@
     1.0
     (-> (g/* sum -4.9)
         (g/exp)
-        (g/+ 1.0)
-        (g/div 1.0)))
+        (g/+ 1.0)))
    (g/* 2.0)
    (g/- 1.0)))
 
@@ -189,6 +188,16 @@
     (assoc-in cppn [:edges node-a node-b] 1.0)
     (assoc-in cppn [:edges node-b node-a] 1.0)))
 
+(defn remove-edge
+  [cppn from to]
+  (update-in cppn [:edges from]
+             (fn [m]
+               (let [m (dissoc m to)]
+                 ;; ensure all nodes have at least one input
+                 (if (empty? m)
+                   (assoc m (rand-nth (seq (:outputs cppn))) 1.0)
+                   m)))))
+
 (defn rand-skew
   [max power]
   (-> (rand (Math/pow max (/ 1 power)))
@@ -198,7 +207,7 @@
 
 (defn rand-weight
   []
-  (* (rand-skew 12 2.5) (rand-sign)))
+  (* (rand-skew 12 3) (rand-sign)))
 
 (defn randomise-weights
   [cppn]
