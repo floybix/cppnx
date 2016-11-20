@@ -3,6 +3,7 @@
             [org.nfrac.cppnx.helpers :refer [glcanvas]]
             [org.nfrac.cppnx.webgl-image :as gl-img]
             [org.nfrac.cppnx.webgl-lines :as gl-lines]
+            [org.nfrac.cppnx.webgl-trace :as gl-trace]
             [org.nfrac.cppnx.svg :as svg]
             [fipp.edn]
             [monet.canvas :as c]
@@ -39,25 +40,28 @@
     (reset! redo-buffer ()))
   (apply swap! ref f more))
 
-(def all-domains [:image :lines])
+(def all-domains [:image :lines :trace])
 
 (defn init-cppn
   [domain]
   (case domain
     :image gl-img/start-cppn
-    :lines gl-lines/start-cppn))
+    :lines gl-lines/start-cppn
+    :trace gl-trace/start-cppn))
 
 (defn gl-setup
   [gl state]
   (case (:domain @app-state)
     :image (gl-img/setup gl state)
-    :lines (gl-lines/setup gl state)))
+    :lines (gl-lines/setup gl state)
+    :trace (gl-trace/setup gl state)))
 
 (defn gl-render
   [info ws]
   (case (:domain @app-state)
     :image (gl-img/render info ws)
-    :lines (gl-lines/render info ws)))
+    :lines (gl-lines/render info ws)
+    :trace (gl-trace/render info ws)))
 
 (def gl-canvas-class "cppnx-main-canvas")
 
@@ -197,7 +201,7 @@
                                (swap! ui-state assoc :paused? false :scrub 0))}
                   [:span.glyphicon.glyphicon-play {:aria-hidden "true"}]
                   "Play"]
-                 [:button.btn.btn-warning
+                 [:button.btn.btn-primary
                   {:on-click (fn [e]
                                (swap! ui-state assoc :paused? true))}
                   [:span.glyphicon.glyphicon-pause {:aria-hidden "true"}]
