@@ -9,17 +9,18 @@
 
 (def start-cppn
   {:inputs #{:bias :z}
-   :outputs #{:x :y :x2 :y2}
+   :outputs #{:r :a :r2 :a2 :v}
    :nodes {:init :gaussian}
    :edges {:init {:z 1.0
                   :bias 1.0}
-           :x {:init 1.0}
-           :y {:init 0.5
+           :r {:init 1.0}
+           :a {:init 0.5
                :bias -0.5}
-           :x2 {:init 0.9
+           :r2 {:init 0.9
                 :z -1.0}
-           :y2 {:init -0.5
-                :bias 1.0}}
+           :a2 {:init -0.5
+                :bias 1.0}
+           :v {:init 1.0}}
    :topology-hash 0})
 
 (def a-variate (g/attribute "a_variate" :float))
@@ -32,14 +33,15 @@
   [cppn w-exprs]
   (let [in-exprs {:bias 1.0, :z a-variate}
         out-exprs (cppnx/build-cppn-vals cppn in-exprs w-exprs)
-        v01 (g/+ (g/* a-variate 0.5) 0.5)
-        col (g/vec4 (hsv2rgb-glsl v01 1 (g/if (g/== 0 a-vx-index) 1 0)) 0.5)]
+        v01 (g/+ (g/* (:v out-exprs) 0.5) 0.5)
+        col (g/vec4 v01 v01 v01 1.0)]
     {(g/gl-position) (g/vec4 (g/if (g/== 0 a-vx-index)
-                                   (:x out-exprs)
-                                   (:x2 out-exprs))
-                             (g/if (g/== 0 a-vx-index)
-                                   (:y out-exprs)
-                                   (:y2 out-exprs))
+                                   (g/* (:r out-exprs)
+                                        (g/vec2 (g/cos (g/* 3.14 (:a out-exprs)))
+                                                (g/sin (g/* 3.14 (:a out-exprs)))))
+                                   (g/* (:r2 out-exprs)
+                                        (g/vec2 (g/cos (g/* 3.14 (:a2 out-exprs)))
+                                                (g/sin (g/* 3.14 (:a2 out-exprs))))))
                              0 1)
      v-color col}))
 
@@ -88,7 +90,7 @@
   gl)
 
 (def variate-vals
-  (range -1.0 1.0 (/ 1 500)))
+  (range -1.0 1.0 (/ 1 1600)))
 
 (def vx-data
   (js/Float32Array.
@@ -122,4 +124,4 @@
         1 ggl/FLOAT false 0 0)
       (.useProgram pgm)
       (load-weights gl-info w-vals)
-      (.drawArrays ggl/LINES 0 (.-length vx-data)))))
+      (.drawArrays ggl/TRIANGLE_STRIP 0 (.-length vx-data)))))
