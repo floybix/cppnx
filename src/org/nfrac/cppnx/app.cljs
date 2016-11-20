@@ -238,20 +238,35 @@
             [:div.col-lg-12
               [svg/cppn-svg cppn (:selection @ui-state) svg-events-c]]]
           ;; Selection controls
-          (when-let [sel (:selection @ui-state)]
+          (when-let [sel (let [s (:selection @ui-state)]
+                           (when (contains? (:nodes cppn) s) s))]
             [:div.row
              [:div.col-lg-12
               [:div.panel.panel-primary
                [:div.panel-heading
                 [:h4.panel-title "Selected node"]]
-               [:button.btn.btn-default
-                {:on-click (fn [e]
-                             (swap-advance! app-state update :cppn
-                                            cppnx/delete-node sel)
-                             (swap! ui-state assoc :selection nil))
-                 :disabled (when (or freeze? (not (contains? (:nodes cppn) sel)))
-                             "disabled")}
-                "Delete"]]]])
+               [:div.panel-body.form-inline
+                [:button.btn.btn-default
+                 {:on-click (fn [e]
+                              (swap-advance! app-state update :cppn
+                                             cppnx/delete-node sel)
+                              (swap! ui-state assoc :selection nil))
+                  :disabled (when freeze? "disabled")}
+                 "Delete"]
+                [:div.form-group
+                 [:label "Function:"]
+                 [:select.form-control
+                  {:value (-> cppn :nodes (get sel) name)
+                   :on-change (fn [e]
+                                (let [s (-> e .-target forms/getValue)
+                                      type (keyword s)]
+                                  (swap! app-state assoc-in
+                                         [:cppn :nodes sel] type)))}
+                  (doall
+                   (for [type cppnx/all-node-types]
+                     [:option {:key (name type)
+                               :value (name type)}
+                      (name type)]))]]]]]])
           ;; Topology controls
           [:div.row
             [:div.col-sm-3
