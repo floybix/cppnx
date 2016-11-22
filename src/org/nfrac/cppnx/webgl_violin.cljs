@@ -1,4 +1,4 @@
-(ns org.nfrac.cppnx.webgl-lines
+(ns org.nfrac.cppnx.webgl-violin
   (:require [org.nfrac.cppnx.core :as cppnx :refer [remap]]
             [org.nfrac.cppnx.util.algo-graph :as graph]
             [org.nfrac.cppnx.webgl-common :refer [hsv2rgb-glsl]]
@@ -8,19 +8,15 @@
             [goog.webgl :as ggl]))
 
 (def start-cppn
-  {:inputs #{:bias :z}
-   :outputs #{:r :a :r2 :a2 :v}
+  {:inputs #{:bias :z :d}
+   :outputs #{:left :right :h}
    :nodes {:init :gaussian}
    :edges {:init {:z 1.0
-                  :bias 1.0}
-           :r {:init 1.0}
-           :a {:init 0.5
-               :bias -0.5}
-           :r2 {:init 0.9
-                :z -1.0}
-           :a2 {:init -0.5
-                :bias 1.0}
-           :v {:init 1.0}}})
+                  :d 1.0}
+           :left {:init 1.0}
+           :right {:init 0.5
+                   :bias -0.5}
+           :h {:init 0.9}}})
 
 (def a-variate (g/attribute "a_variate" :float))
 
@@ -28,19 +24,18 @@
 
 (def v-color (g/varying "v_color" :vec4 :highp))
 
+(defn ->01 [z] (g/+ (g/* z 0.5) 0.5))
+
 (defn vertex-shader
   [cppn w-exprs]
-  (let [in-exprs {:bias 1.0, :z a-variate}
+  (let [in-exprs {:bias 1.0, :z a-variate, :d (g/abs a-variate)}
         out-exprs (cppnx/build-cppn-vals cppn in-exprs w-exprs)
-        v01 (g/+ (g/* (:v out-exprs) 0.5) 0.5)
-        col (g/vec4 v01 v01 v01 1.0)]
+        v01 (->01 (:h out-exprs))
+        col (g/vec4 (hsv2rgb-glsl v01 1.0 0.5) 1.0)]
     {(g/gl-position) (g/vec4 (g/if (g/== 0 a-vx-index)
-                                   (g/* (:r out-exprs)
-                                        (g/vec2 (g/cos (g/* 3.14 (:a out-exprs)))
-                                                (g/sin (g/* 3.14 (:a out-exprs)))))
-                                   (g/* (:r2 out-exprs)
-                                        (g/vec2 (g/cos (g/* 3.14 (:a2 out-exprs)))
-                                                (g/sin (g/* 3.14 (:a2 out-exprs))))))
+                                   (g/- 0 (->01 (:left out-exprs)))
+                                   (->01 (:right out-exprs)))
+                             a-variate ; z = y
                              0 1)
      v-color col}))
 
@@ -89,7 +84,7 @@
   gl)
 
 (def variate-vals
-  (range -1.0 1.0 (/ 1 1600)))
+  (range -1.0 1.0 (/ 1 800)))
 
 (def vx-data
   (js/Float32Array.

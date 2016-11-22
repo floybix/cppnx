@@ -16,8 +16,7 @@
            :h {:init 1.0}
            :s {:init 0.5
                :x -1.0}
-           :v {:init 1.0}}
-   :topology-hash 0})
+           :v {:init 1.0}}})
 
 (def all-node-types
   #{:linear :sine :gaussian :sigmoid :sawtooth})
@@ -29,14 +28,12 @@
 (s/def ::weight (s/double-in :min -100 :max 100 :NaN? false))
 (s/def ::node-edges (s/map-of ::node-id ::weight))
 (s/def ::edges (s/map-of ::node-id ::node-edges, :min-count 1))
-(s/def ::topology-hash int?)
 
 (s/def ::cppn
   (s/keys :req-un [::inputs
                    ::outputs
                    ::nodes
-                   ::edges
-                   ::topology-hash]))
+                   ::edges]))
 
 ;;; cppns
 
@@ -125,15 +122,14 @@
   [cppn]
   (let [types all-node-types
         type (rand-nth (seq types))
-        id (keyword (gensym "node"))
+        id (keyword (gensym "n"))
         to1 (rand-nth (seq (:outputs cppn)))
         [from1 w1] (rand-nth (seq (get-in cppn [:edges to1])))]
     (-> cppn
         (update :nodes assoc id type)
         (update :edges assoc id {from1 w1})
         (update-in [:edges to1] dissoc from1)
-        (update-in [:edges to1] assoc id 1.0)
-        (update :topology-hash inc))))
+        (update-in [:edges to1] assoc id 1.0))))
 
 (defn mutate-add-conn
   [cppn]
@@ -143,8 +139,7 @@
                            (concat (keys (:nodes cppn)) (:inputs cppn)))]
     (if (seq candidates)
       (-> cppn
-          (assoc-in [:edges to-node (rand-nth (seq candidates))] 1.0)
-          (update :topology-hash inc))
+          (assoc-in [:edges to-node (rand-nth (seq candidates))] 1.0))
       cppn)))
 
 (defn mutate-rewire-conn
@@ -157,8 +152,7 @@
     (if (seq candidates)
       (-> cppn
           (update-in [:edges to-node] dissoc rm-from)
-          (assoc-in [:edges to-node (rand-nth (seq candidates))] w)
-          (update :topology-hash inc))
+          (assoc-in [:edges to-node (rand-nth (seq candidates))] w))
       cppn)))
 
 (defn delete-node

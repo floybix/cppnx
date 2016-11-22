@@ -14,8 +14,7 @@
    :edges {:init {:t 1.0
                   :z 1.0
                   :bias 1.0}
-           :y {:init 1.0}}
-   :topology-hash 0})
+           :y {:init 1.0}}})
 
 (def a-t (g/attribute "a_t" :float))
 

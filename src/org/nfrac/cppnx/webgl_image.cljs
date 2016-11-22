@@ -16,8 +16,7 @@
            :h {:init 1.0}
            :s {:init 0.5
                :x -1.0}
-           :v {:init 1.0}}
-   :topology-hash 0})
+           :v {:init 1.0}}})
 
 (def a-position (g/attribute "a_VertexPosition" :vec2))
 
