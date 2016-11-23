@@ -28,7 +28,7 @@
   (let [in-exprs {:bias 1.0, :t a-t, :z a-z}
         out-exprs (cppnx/build-cppn-vals cppn in-exprs w-exprs)
         z01 (g/+ (g/* a-z 0.5) 0.5)
-        col (g/vec4 (hsv2rgb-glsl z01 1 1) 1)]
+        col (g/vec4 (hsv2rgb-glsl z01 0.5 1) 1)]
     {(g/gl-position) (g/vec4 a-t
                              (:y out-exprs)
                              0 1)
@@ -80,10 +80,12 @@
   gl)
 
 (def t-vals
-  (range -1.0 1.0 (/ 1 500)))
+  (range -1.0 1.0 (/ 1 600)))
+
+(defn mirrored [xs] (concat (map - xs) (reverse xs)))
 
 (def attr-data
-    (for [[i z] (map-indexed vector [-0.67 -0.33 0 0.33 0.67])
+    (for [[i z] (map-indexed vector (mirrored (range 0.1 1.0 0.1)))
           t (if (zero? (mod i 2))
               t-vals
               (reverse t-vals))]
