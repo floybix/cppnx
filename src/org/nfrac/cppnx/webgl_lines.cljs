@@ -11,14 +11,19 @@
   {:domain :lines
    :inputs #{:bias :z}
    :outputs #{:r :a :r2 :a2 :v}
-   :nodes {:init :gaussian}
-   :edges {:init {:z 1.0
-                  :bias 1.0}
-           :r {:init 1.0}
-           :a {:init 0.5}
-           :r2 {:init 0.9}
-           :a2 {:init -0.5}
-           :v {:init 1.0}}})
+   :nodes {:init :gaussian
+           :init2 :linear
+           :init3 :linear}
+   :edges {:init {:z 1.0}
+           :init2 {:init 1.0
+                   :bias 1.0}
+           :init3 {:init 1.0
+                   :bias 1.0}
+           :r {:init2 1.0}
+           :a {:init3 0.5}
+           :r2 {:init2 0.9}
+           :a2 {:init3 -0.5}
+           :v {:init2 1.0}}})
 
 (def a-variate (g/attribute "a_variate" :float))
 
