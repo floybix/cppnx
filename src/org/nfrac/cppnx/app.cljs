@@ -9,6 +9,7 @@
             [fipp.edn]
             [reagent.core :as reagent :refer [atom]]
             [goog.dom :as dom]
+            [goog.dom.classes :as classes]
             [goog.dom.forms :as forms]
             [goog.webgl :as ggl]
             [clojure.core.async :as async :refer [<! put!]])
@@ -17,7 +18,8 @@
 (enable-console-print!)
 
 (defonce app-state
-  (atom {:cppn gl-img/start-cppn}))
+  (atom {:cppn gl-img/start-cppn
+         :snapshots ()}))
 
 (defonce ui-state
   (atom {:selection nil
@@ -85,6 +87,21 @@
     :trace (gl-trace/render info ws)))
 
 (def gl-canvas-class "cppnx-main-canvas")
+(def gl-snap-canvas-class "cppnx-snap-canvas")
+
+(defn snapshot!
+  [app-state ui-state]
+  (let [el (dom/getElementByClass gl-snap-canvas-class)
+        _ (classes/swap el "hidden" "show")
+        gl (.getContext el "webgl")
+        info (gl-setup gl @app-state)]
+    (gl-render info (:ws info))
+    (when-not (contains? (set (map :cppn (:snapshots @app-state)))
+                         (:cppn @app-state))
+      (swap! app-state update :snapshots conj
+        {:img-data (.toDataURL el)
+         :cppn (:cppn @app-state)}))
+    (classes/swap el "show" "hidden")))
 
 (defn animate [state step-fn draw-fn]
   (js/requestAnimationFrame
@@ -355,6 +372,34 @@
           (let [info (gl-setup gl @app-state)]
             (gl-render info (:ws info))))]]]]))
 
+(defn snapshots-pane
+  [app-state ui-state]
+  [:div
+   {:style {:width "100%"
+            :margin-bottom "5px"
+            :direction "rtl"
+            :white-space "nowrap"
+            :overflow-x "auto"
+            :overflow-y "hidden"}}
+   [:canvas.hidden
+    {:class gl-snap-canvas-class
+     :width 100
+     :height 100
+     :style {:border "1px black"
+             :width "100px"
+             :height "100px"}}]
+   (for [snap (:snapshots @app-state)]
+     ^{:key (hash (:cppn snap))}
+     [:div
+      {:style {:display "inline-block"
+               :margin-left "5px"}}
+      [:a
+       {:on-click
+        (fn [e]
+          (swap! app-state assoc :cppn (:cppn snap)))}
+       [:img
+        {:src (:img-data snap)}]]])])
+
 (defn navbar
   [app-state ui-state]
   (let []
@@ -397,8 +442,18 @@
         ;; timestep
         [:li
          [:p.navbar-text
-          (str "Foo")]]
-        [:form.navbar-form.navbar-left
+          (str " ")]]
+        [:li
+         [:button.btn.btn-default.navbar-btn
+          {:type :button
+           :on-click
+           (fn [_]
+             (snapshot! app-state ui-state))
+           :title "Take snapshot"}
+          [:span.glyphicon.glyphicon-camera {:aria-hidden "true"}]
+          " Snapshot"]]]
+       ;; domain
+       [:form.navbar-form.navbar-left
          [:div.form-group
           [:label
            "Domain: "]
@@ -413,13 +468,16 @@
             (for [domain all-domains]
               [:option {:key (name domain)
                         :value (name domain)}
-               (name domain)]))]]]]]]]))
+               (name domain)]))]]]]]]))
 
 (defn app-pane
   [app-state ui-state]
   [:div
    [navbar app-state ui-state]
    [:div.container-fluid
+    [:div.row
+     [:div.col-lg-12
+      [snapshots-pane app-state ui-state]]]
     [:div.row
      [:div.col-lg-6.col-md-8
       [view-pane app-state ui-state]]
