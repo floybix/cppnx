@@ -97,8 +97,10 @@
          (animate state step-fn draw-fn))))))
 
 (defn tour-go!
-  [app-state ui-state tour]
-  (let [gl-info-ref (clojure.core/atom {})
+  [app-state ui-state concurrency]
+  (let [sel (:selection @ui-state)
+        tour (cppnx/init-weights-tour (:cppn @app-state) 1 sel)
+        gl-info-ref (clojure.core/atom {})
         el (dom/getElementByClass gl-canvas-class)
         gl (.getContext el "webgl")]
     (swap! ui-state assoc
@@ -190,21 +192,20 @@
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
-                                           cppnx/randomise-weights))
+                                           cppnx/randomise-weights
+                                           (:selection @ui-state)))
                 :disabled disabled}
                "Random weights"]]
              [:div.col-sm-3
               [:button.btn.btn-default
                {:on-click (fn [e]
-                            (tour-go! app-state ui-state
-                                      (cppnx/init-weights-tour cppn 1)))
+                            (tour-go! app-state ui-state 1))
                 :disabled disabled}
                "Weight tour (ones)"]]
              [:div.col-sm-3
               [:button.btn.btn-primary
                {:on-click (fn [e]
-                            (tour-go! app-state ui-state
-                                      (cppnx/init-weights-tour cppn 3)))
+                            (tour-go! app-state ui-state 3))
                 :disabled disabled}
                "Weight tour (triples)"]]])
           ;; In-tour controls

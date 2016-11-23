@@ -118,6 +118,32 @@
       (graph/add-loops)
       (graph/get-neighbors node-id)))
 
+(defn edge-list
+  [cppn]
+  (sort
+   (for [[to m] (:edges cppn)
+         from (keys m)]
+    [to from])))
+
+(defn cppn-weights
+  [cppn]
+  (mapv #(get-in (:edges cppn) %) (edge-list cppn)))
+
+(defn set-cppn-weights
+  [cppn ws]
+  (reduce (fn [cppn [[to from] w]]
+            (assoc-in cppn [:edges to from] w))
+          cppn
+          (map vector (edge-list cppn) ws)))
+
+(defn use-indices
+  [cppn use-node]
+  (keep-indexed (fn [i [to from]]
+                  (when (or (nil? use-node)
+                            (= to use-node))
+                        i))
+                (edge-list cppn)))
+
 (defn mutate-append-node
   [cppn]
   (let [types all-node-types
@@ -204,15 +230,14 @@
   (* (rand-skew 12 3) (rand-sign)))
 
 (defn randomise-weights
-  [cppn]
-  (let [edge-list (for [[from m] (:edges cppn)
-                        [to w] m]
-                    [from to])]
-    (reduce (fn [cppn edge]
-              (assoc-in cppn (into [:edges] edge)
-                        (rand-weight)))
-            cppn
-            edge-list)))
+  [cppn use-node]
+  (let [ws (cppn-weights cppn)
+        use-is (use-indices cppn use-node)
+        new-ws (reduce (fn [ws i]
+                         (assoc ws i (rand-weight)))
+                       ws
+                       use-is)]
+    (set-cppn-weights cppn new-ws)))
 
 ;;; weight-space tours
 
@@ -229,24 +254,6 @@
 (defn interp
   [from to z]
   (+ from (* z (- to from))))
-
-(defn edge-list
-  [cppn]
-  (sort
-   (for [[to m] (:edges cppn)
-         from (keys m)]
-    [to from])))
-
-(defn cppn-weights
-  [cppn]
-  (mapv #(get-in (:edges cppn) %) (edge-list cppn)))
-
-(defn set-cppn-weights
-  [cppn ws]
-  (reduce (fn [cppn [[to from] w]]
-            (assoc-in cppn [:edges to from] w))
-          cppn
-          (map vector (edge-list cppn) ws)))
 
 (defn motion
   [index from-val to-val]
@@ -266,10 +273,12 @@
     (interp from-val to-val (smooth-step time-frac))))
 
 (defn init-weights-tour
-  [cppn concurrency]
+  [cppn concurrency use-node]
   (let [ws (cppn-weights cppn)
-        is (take concurrency (shuffle (range (count ws))))]
+        use-is (use-indices cppn use-node)
+        is (take concurrency (shuffle use-is))]
     {:weights ws
+     :use-indices use-is
      :motion-frac 0.0
      :motions (mapv #(rand-motion ws %) is)
      :waypoints (list ws)}))
@@ -287,7 +296,7 @@
     (if (>= (:motion-frac tour) 1.0)
       ;; record waypoint and choose new motions
       (let [ws (:weights tour)
-            is (take concurrency (shuffle (range (count ws))))]
+            is (take concurrency (shuffle (:use-indices tour)))]
         (-> tour
             (update :waypoints conj (:weights tour))
             (assoc :motion-frac 0.0)
