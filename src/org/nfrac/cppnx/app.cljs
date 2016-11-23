@@ -4,9 +4,9 @@
             [org.nfrac.cppnx.webgl-image :as gl-img]
             [org.nfrac.cppnx.webgl-lines :as gl-lines]
             [org.nfrac.cppnx.webgl-trace :as gl-trace]
+            [org.nfrac.cppnx.share :as share]
             [org.nfrac.cppnx.svg :as svg]
             [fipp.edn]
-            [monet.canvas :as c]
             [reagent.core :as reagent :refer [atom]]
             [goog.dom :as dom]
             [goog.dom.forms :as forms]
@@ -38,7 +38,22 @@
   (swap! undo-buffer conj @ref)
   (when (seq @redo-buffer)
     (reset! redo-buffer ()))
-  (apply swap! ref f more))
+  (let [x (apply swap! ref f more)]
+    (share/set-uri-cppn (:cppn x))
+    x))
+
+;;; side-effecting at js load time!
+;;; not on-load after page load, because that flashes default cppn
+(when-let [c (share/get-uri-cppn)]
+  (swap! app-state assoc :cppn c))
+
+(defonce
+  onpopstate
+  (set! (.-onpopstate js/window)
+    (fn [e]
+      (when-let [c (share/get-uri-cppn)]
+        (swap! app-state assoc :cppn c)))))
+
 
 (def all-domains [:image :lines :trace])
 

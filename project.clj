@@ -13,7 +13,7 @@
                  [kovasb/gamma "0.0-135-21-g3c9e**DIRTY**" #_"0.1.1" :exclusions [[fipp]]]
                  [fipp "0.6.7" :exclusions [org.clojure/core.rrb-vector]]
                  [quantum/org.clojure.core.rrb-vector "0.0.12"]
-                 [rm-hull/monet "0.3.0"]
+                 [cljsjs/oauthio "0.4.0-0"]
                  [reagent "0.6.0"]
                  [reagent-forms "0.5.28"]]
 
