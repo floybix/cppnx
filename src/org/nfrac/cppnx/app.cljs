@@ -128,6 +128,25 @@
      (fn [info]
        (gl-render info (:weights (:tour info)))))))
 
+(defn tour-pause!
+  [ui-state]
+  (let [gl-info-ref (:gl-info-ref @ui-state)
+        tour (:tour @gl-info-ref)
+        wp (:waypoints tour)]
+    (swap! ui-state assoc :paused? true)
+    (swap! gl-info-ref update :tour
+           (fn [tour]
+             (if (>= (:motion-frac tour) 0.1)
+               ;; add waypoint and init new motions
+               (-> (assoc tour :motion-frac 1.0)
+                   (cppnx/step-weights-tour 0.01))
+               tour)))))
+
+(defn tour-continue!
+  [ui-state]
+  (swap! ui-state assoc :paused? false
+         :scrub 0 :scrub-detail 0))
+
 (defn tour-scrub!
   [ui-state]
   (let [gl-info-ref (:gl-info-ref @ui-state)
@@ -220,12 +239,12 @@
                (if (:paused? @ui-state)
                  [:button.btn.btn-success
                   {:on-click (fn [e]
-                               (swap! ui-state assoc :paused? false :scrub 0))}
+                               (tour-continue! ui-state))}
                   [:span.glyphicon.glyphicon-play {:aria-hidden "true"}]
                   "Play"]
                  [:button.btn.btn-primary
                   {:on-click (fn [e]
-                               (swap! ui-state assoc :paused? true))}
+                               (tour-pause! ui-state))}
                   [:span.glyphicon.glyphicon-pause {:aria-hidden "true"}]
                   "Pause"])]]
              [:div.col-sm-9
