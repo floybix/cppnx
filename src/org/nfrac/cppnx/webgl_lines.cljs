@@ -8,18 +8,16 @@
             [goog.webgl :as ggl]))
 
 (def start-cppn
-  {:inputs #{:bias :z}
+  {:domain :lines
+   :inputs #{:bias :z}
    :outputs #{:r :a :r2 :a2 :v}
    :nodes {:init :gaussian}
    :edges {:init {:z 1.0
                   :bias 1.0}
            :r {:init 1.0}
-           :a {:init 0.5
-               :bias -0.5}
-           :r2 {:init 0.9
-                :z -1.0}
-           :a2 {:init -0.5
-                :bias 1.0}
+           :a {:init 0.5}
+           :r2 {:init 0.9}
+           :a2 {:init -0.5}
            :v {:init 1.0}}})
 
 (def a-variate (g/attribute "a_variate" :float))
@@ -89,7 +87,7 @@
   gl)
 
 (def variate-vals
-  (range -1.0 1.0 (/ 1 1600)))
+  (range -1.0 1.0 (/ 1 2500)))
 
 (def vx-data
   (js/Float32Array.

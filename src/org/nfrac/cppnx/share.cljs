@@ -21,7 +21,7 @@
   [cppn]
   (-> cppn
       (symbolize-kws)
-      (str)
+      (pr-str)
       (str/replace #",? " "_")))
 
 (defn uristr->cppn
@@ -39,10 +39,10 @@
     (when tc
       (uristr->cppn tc))))
 
-(defn set-uri-cppn
+(defn uri-with-cppn
   [cppn]
   (let [uri (goog.Uri. (.-location js/window))
         qd (goog.Uri.QueryData/createFromMap
             (clj->js {"cppn" (cppn->uristr cppn)}))]
     (.setQueryData uri qd)
-    (.pushState js/history (hash cppn) "CPPNx" (str uri))))
+    (str uri)))

@@ -17,8 +17,7 @@
 (enable-console-print!)
 
 (defonce app-state
-  (atom {:domain :image
-         :cppn gl-img/start-cppn}))
+  (atom {:cppn gl-img/start-cppn}))
 
 (defonce ui-state
   (atom {:selection nil
@@ -38,22 +37,10 @@
   (swap! undo-buffer conj @ref)
   (when (seq @redo-buffer)
     (reset! redo-buffer ()))
-  (let [x (apply swap! ref f more)]
-    (share/set-uri-cppn (:cppn x))
+  (let [x (apply swap! ref f more)
+        uri (share/uri-with-cppn (dissoc (:cppn x) :inputs :outputs))]
+    (.pushState js/history (hash x) "cppnx" uri)
     x))
-
-;;; side-effecting at js load time!
-;;; not on-load after page load, because that flashes default cppn
-(when-let [c (share/get-uri-cppn)]
-  (swap! app-state assoc :cppn c))
-
-(defonce
-  onpopstate
-  (set! (.-onpopstate js/window)
-    (fn [e]
-      (when-let [c (share/get-uri-cppn)]
-        (swap! app-state assoc :cppn c)))))
-
 
 (def all-domains [:image :lines :trace])
 
@@ -64,16 +51,35 @@
     :lines gl-lines/start-cppn
     :trace gl-trace/start-cppn))
 
+(defn get-uri-cppn-full
+  "Fills in implied :inputs :outputs from given :domain"
+  []
+  (when-let [c (share/get-uri-cppn)]
+    (merge (init-cppn (:domain c)) c)))
+
+;;; side-effecting at js load time!
+;;; not on-load after page load, because that flashes default cppn
+(when-let [c (get-uri-cppn-full)]
+  (swap! app-state assoc :cppn c))
+
+(defonce
+  onpopstate
+  (set! (.-onpopstate js/window)
+    (fn [e]
+      (when-let [c (get-uri-cppn-full)]
+        (swap! app-state assoc :cppn c)))))
+
+
 (defn gl-setup
   [gl state]
-  (case (:domain @app-state)
+  (case (:domain (:cppn @app-state))
     :image (gl-img/setup gl state)
     :lines (gl-lines/setup gl state)
     :trace (gl-trace/setup gl state)))
 
 (defn gl-render
   [info ws]
-  (case (:domain @app-state)
+  (case (:domain (:cppn @app-state))
     :image (gl-img/render info ws)
     :lines (gl-lines/render info ws)
     :trace (gl-trace/render info ws)))
@@ -377,12 +383,11 @@
           [:label
            "Domain: "]
           [:select.form-control
-           {:value (name (:domain @app-state))
+           {:value (name (:domain (:cppn @app-state)))
             :on-change (fn [e]
                          (let [s (-> e .-target forms/getValue)
                                domain (keyword s)]
                            (swap! app-state assoc
-                                  :domain domain
                                   :cppn (init-cppn domain))))}
            (doall
             (for [domain all-domains]
