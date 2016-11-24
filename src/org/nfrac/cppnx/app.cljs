@@ -23,6 +23,7 @@
 
 (defonce ui-state
   (atom {:selection nil
+         :perturbation 1.0
          :scrub 0
          :scrub-detail 0}))
 
@@ -115,8 +116,9 @@
 
 (defn tour-start!
   [app-state ui-state concurrency]
-  (let [sel (:selection @ui-state)
-        tour (cppnx/init-weights-tour (:cppn @app-state) 1 sel)
+  (let [tour (cppnx/init-weights-tour (:cppn @app-state) concurrency
+                                      (:perturbation @ui-state)
+                                      (:selection @ui-state))
         gl-info-ref (clojure.core/atom {})
         el (dom/getElementByClass gl-canvas-class)
         gl (.getContext el "webgl")]
@@ -199,7 +201,7 @@
   [app-state ui-state]
   [:div.panel.panel-primary
    [:div.panel-heading
-    [:h4.panel-title "Weights tour"]]
+    [:b "Weights tour"]]
    [:div.panel-body
     [:div.row
      [:div.col-xs-3
@@ -247,6 +249,74 @@
                          (swap! ui-state assoc :scrub-detail x)
                          (tour-scrub! ui-state)))}]]]]]])
 
+(defn weights-controls
+  [app-state ui-state]
+  [:div.panel.panel-default
+   [:div.panel-heading
+    [:b "Parameter changes"]]
+   [:div.panel-body
+    [:div.row
+     [:div.col-xs-3
+      [:button.btn.btn-default
+       {:on-click (fn [e]
+                    (swap-advance! app-state update :cppn
+                                   cppnx/randomise-weights
+                                   (:perturbation @ui-state)
+                                   (:selection @ui-state)))}
+       "Vary weights"]]
+     [:div.col-xs-3
+      [:button.btn.btn-default
+       {:on-click (fn [e]
+                    (tour-start! app-state ui-state 1))}
+       "Weight tour (x1)"]]
+     [:div.col-xs-3
+      [:button.btn.btn-primary
+       {:on-click (fn [e]
+                    (tour-start! app-state ui-state 3))}
+       "Weight tour (x3)"]]]
+    [:div.row
+     [:div.col-lg-12
+      [:div
+        [:label "small"]
+        [:input
+         {:style {:display "inline-block"
+                  :margin "1ex"
+                  :width "70%"}
+          :type "range"
+          :min 1
+          :max 100
+          :value (int (* 100 (:perturbation @ui-state)))
+          :on-change (fn [e]
+                       (let [x (-> e .-target forms/getValue)]
+                         (swap! ui-state assoc :perturbation (/ x 100))))}]
+        [:label "large"]]]]]])
+
+(defn topology-controls
+  [app-state ui-state]
+  [:div.panel.panel-default
+   [:div.panel-heading
+    [:b "Structure changes"]]
+   [:div.panel-body
+    [:div.row
+     [:div.col-xs-3
+      [:button.btn.btn-default
+       {:on-click (fn [e]
+                    (swap-advance! app-state update :cppn
+                                   cppnx/mutate-append-node))}
+       "Append node"]]
+     [:div.col-xs-3
+      [:button.btn.btn-default
+       {:on-click (fn [e]
+                    (swap-advance! app-state update :cppn
+                                   cppnx/mutate-add-conn))}
+       "Add connection"]]
+     [:div.col-xs-3
+      [:button.btn.btn-default
+       {:on-click (fn [e]
+                    (swap-advance! app-state update :cppn
+                                   cppnx/mutate-rewire-conn))}
+       "Rewire connection"]]]]])
+
 (defn settings-pane
   [app-state ui-state]
   (let [svg-events-c (async/chan)]
@@ -277,27 +347,7 @@
         [:div
           ;; Weights
           (when-not (:animating? @ui-state)
-            [:div.row
-             [:div.col-xs-3
-              [:button.btn.btn-default
-               {:on-click (fn [e]
-                            (swap-advance! app-state update :cppn
-                                           cppnx/randomise-weights
-                                           (:selection @ui-state)))
-                :disabled disabled}
-               "Random weights"]]
-             [:div.col-xs-3
-              [:button.btn.btn-default
-               {:on-click (fn [e]
-                            (tour-start! app-state ui-state 1))
-                :disabled disabled}
-               "Weight tour (ones)"]]
-             [:div.col-xs-3
-              [:button.btn.btn-primary
-               {:on-click (fn [e]
-                            (tour-start! app-state ui-state 3))
-                :disabled disabled}
-               "Weight tour (triples)"]]])
+            [weights-controls app-state ui-state])
           ;; In-tour controls
           (when (:animating? @ui-state)
             [tour-controls app-state ui-state])
@@ -312,7 +362,7 @@
              [:div.col-lg-12
               [:div.panel.panel-primary
                [:div.panel-heading
-                [:h4.panel-title "Selected node"]]
+                [:b "Selected node"]]
                [:div.panel-body.form-inline
                 [:button.btn.btn-default
                  {:on-click (fn [e]
@@ -336,28 +386,8 @@
                                :value (name type)}
                       (name type)]))]]]]]])
           ;; Topology controls
-          [:div.row
-            [:div.col-xs-3
-              [:button.btn.btn-default
-               {:on-click (fn [e]
-                            (swap-advance! app-state update :cppn
-                                           cppnx/mutate-append-node))
-                :disabled disabled}
-               "Append node"]]
-            [:div.col-xs-3
-              [:button.btn.btn-default
-               {:on-click (fn [e]
-                            (swap-advance! app-state update :cppn
-                                           cppnx/mutate-add-conn))
-                :disabled disabled}
-               "Add connection"]]
-            [:div.col-xs-3
-              [:button.btn.btn-default
-               {:on-click (fn [e]
-                            (swap-advance! app-state update :cppn
-                                           cppnx/mutate-rewire-conn))
-                :disabled disabled}
-               "Rewire connection"]]]
+          (when-not (:animating? @ui-state)
+            [topology-controls app-state ui-state])
           ;; Source
           [:div.row
             [:p

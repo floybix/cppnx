@@ -225,16 +225,25 @@
 
 (defn rand-sign [] (if (pos? (rand-int 2)) 1 -1))
 
+(defn interp
+  [from to z]
+  (+ from (* z (- to from))))
+
 (defn rand-weight
-  []
-  (* (rand-skew 12 3) (rand-sign)))
+  [from-w perturbation]
+  (println "perturbation" perturbation from-w)
+  (let [global-w (* (rand-skew 12 3) (rand-sign))
+        locally (+ from-w (* perturbation 0.5 global-w))
+        globally (interp from-w global-w (* perturbation perturbation))]
+    (+ (* perturbation globally)
+       (* (- 1.0 perturbation) locally))))
 
 (defn randomise-weights
-  [cppn use-node]
+  [cppn perturbation use-node]
   (let [ws (cppn-weights cppn)
         use-is (use-indices cppn use-node)
         new-ws (reduce (fn [ws i]
-                         (assoc ws i (rand-weight)))
+                         (assoc ws i (rand-weight (nth ws i) perturbation)))
                        ws
                        use-is)]
     (set-cppn-weights cppn new-ws)))
@@ -251,10 +260,6 @@
   (let [z (-> z (max 0.0) (min 1.0))]
     (* z z z (+ 10 (* z (- (* z 6) 15))))))
 
-(defn interp
-  [from to z]
-  (+ from (* z (- to from))))
-
 (defn motion
   [index from-val to-val]
   {:index index
@@ -262,9 +267,9 @@
    :to-val to-val})
 
 (defn rand-motion
-  [ws index]
+  [ws index perturbation]
   (let [from-val (nth ws index)
-        to-val (rand-weight)]
+        to-val (rand-weight from-val perturbation)]
     (motion index from-val to-val)))
 
 (defn motion-at
@@ -273,14 +278,15 @@
     (interp from-val to-val (smooth-step time-frac))))
 
 (defn init-weights-tour
-  [cppn concurrency use-node]
+  [cppn concurrency perturbation use-node]
   (let [ws (cppn-weights cppn)
         use-is (use-indices cppn use-node)
         is (take concurrency (shuffle use-is))]
     {:weights ws
      :use-indices use-is
+     :perturbation perturbation
      :motion-frac 0.0
-     :motions (mapv #(rand-motion ws %) is)
+     :motions (mapv #(rand-motion ws % perturbation) is)
      :waypoints (list ws)}))
 
 (defn apply-motions
@@ -292,7 +298,8 @@
 
 (defn step-weights-tour
   [tour dt]
-  (let [concurrency (count (:motions tour))]
+  (let [concurrency (count (:motions tour))
+        perturbation (:perturbation tour)]
     (if (>= (:motion-frac tour) 1.0)
       ;; record waypoint and choose new motions
       (let [ws (:weights tour)
@@ -300,7 +307,7 @@
         (-> tour
             (update :waypoints conj (:weights tour))
             (assoc :motion-frac 0.0)
-            (assoc :motions (mapv #(rand-motion ws %) is))))
+            (assoc :motions (mapv #(rand-motion ws % perturbation) is))))
       ;; just a step
       (let [t (+ (:motion-frac tour) dt)
             ws (apply-motions (:weights tour) (:motions tour) t)]
