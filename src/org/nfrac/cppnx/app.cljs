@@ -23,7 +23,7 @@
 
 (def init-ui-state
   {:selection nil
-   :perturbation 1.0
+   :perturbation 0.5
    :scrub 0
    :scrub-detail 0})
 
@@ -262,7 +262,9 @@
   [app-state ui-state]
   [:div.panel.panel-default
    [:div.panel-heading
-    [:b "Parameter changes"]]
+    [:b "Parameter changes"]
+    [:span.small.text-muted
+     " ...oh btw, you can select a node to vary only its incoming edges."]]
    [:div.panel-body
     [:div.btn-group.btn-group-justified
      [:div.btn-group
@@ -304,7 +306,9 @@
   [app-state ui-state]
   [:div.panel.panel-default
    [:div.panel-heading
-    [:b "Structure changes"]]
+    [:b "Structure changes"]
+    [:span.small.text-muted
+     " ...just drag btwn nodes to add or remove links. click a node to edit it."]]
    [:div.panel-body
     [:div.btn-group.btn-group-justified
      [:div.btn-group
@@ -318,7 +322,7 @@
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-add-conn))}
-       "Random connection"]]
+       "Random link"]]
      [:div.btn-group
       [:button.btn.btn-default
        {:on-click (fn [e]
@@ -516,7 +520,7 @@
           " Snapshot"]]
         [:li
          [:p.navbar-text
-          (str " (appears at bottom of page)")]]]
+          (str " (will appear at bottom of page)")]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
@@ -533,7 +537,12 @@
             (for [domain all-domains]
               [:option {:key (name domain)
                         :value (name domain)}
-               (name domain)]))]]]]]]))
+               (name domain)]))]]]
+       ;; right-aligned items
+       [:ul.nav.navbar-nav.navbar-right
+        [:li
+         [:p.navbar-text.text-muted
+          " feel free to use browser back/forward!"]]]]]]))
 
 (defn app-pane
   [app-state ui-state]
