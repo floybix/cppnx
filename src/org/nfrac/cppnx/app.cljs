@@ -24,6 +24,7 @@
 (def init-ui-state
   {:selection nil
    :perturbation 0.5
+   :seconds-per-move 1.3
    :scrub 0
    :scrub-detail 0})
 
@@ -141,8 +142,8 @@
      (fn [info]
        (let [time-now (.getTime (js/Date.))
              elapsed (- time-now (:last-rendered info))
-             seconds-per-move 1.3
-             dt (min 0.1 (/ elapsed 1000.0 seconds-per-move))
+             dur-secs (:seconds-per-move @ui-state)
+             dt (min 0.1 (/ elapsed 1000.0 dur-secs))
              tour (cppnx/step-weights-tour (:tour info) dt)]
          (-> info
              (assoc :tour tour
@@ -256,7 +257,22 @@
           :on-change (fn [e]
                        (let [x (-> e .-target forms/getValue js/parseFloat)]
                          (swap! ui-state assoc :scrub-detail x)
-                         (tour-scrub! ui-state)))}]]]]]])
+                         (tour-scrub! ui-state)))}]]
+       [:div.form-horizontal
+         [:label
+          (str (-> (:seconds-per-move @ui-state)
+                   (* 100) int (/ 100))
+               " sec/move ")]
+         [:button.btn.btn-default.btn-sm
+          {:on-click
+           (fn [e]
+             (swap! ui-state update :seconds-per-move #(* % 0.6667)))}
+          "Faster!"]
+         [:button.btn.btn-default.btn-sm
+          {:on-click
+           (fn [e]
+             (swap! ui-state update :seconds-per-move #(* % 1.5)))}
+          "Slower."]]]]]])
 
 (defn weights-controls
   [app-state ui-state]
