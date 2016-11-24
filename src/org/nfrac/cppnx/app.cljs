@@ -113,7 +113,7 @@
          (draw-fn next-value)
          (animate state step-fn draw-fn))))))
 
-(defn tour-go!
+(defn tour-start!
   [app-state ui-state concurrency]
   (let [sel (:selection @ui-state)
         tour (cppnx/init-weights-tour (:cppn @app-state) 1 sel)
@@ -166,6 +166,8 @@
 
 (defn tour-scrub!
   [ui-state]
+  (when-not (:paused? @ui-state)
+    (tour-pause! ui-state))
   (let [gl-info-ref (:gl-info-ref @ui-state)
         tour (:tour @gl-info-ref)
         wp (:waypoints tour)
@@ -189,9 +191,61 @@
   (let [gl-info-ref (:gl-info-ref @ui-state)
         weights (:weights (:tour @gl-info-ref))]
     (swap! gl-info-ref assoc :stop! true)
+    (swap! ui-state dissoc :animating? :gl-info-ref)
     (swap-advance! app-state
-                   update :cppn cppnx/set-cppn-weights weights)
-    (swap! ui-state dissoc :animating? :gl-info-ref)))
+                   update :cppn cppnx/set-cppn-weights weights)))
+
+(defn tour-controls
+  [app-state ui-state]
+  [:div.panel.panel-primary
+   [:div.panel-heading
+    [:h4.panel-title "Weights tour"]]
+   [:div.panel-body
+    [:div.row
+     [:div.col-xs-3
+      [:div.form-inline
+       [:button.btn.btn-danger
+        {:on-click (fn [e]
+                     (tour-stop! app-state ui-state))}
+        "End"]
+       (if (:paused? @ui-state)
+         [:button.btn.btn-success
+          {:on-click (fn [e]
+                       (tour-continue! ui-state))}
+          [:span.glyphicon.glyphicon-play {:aria-hidden "true"}]
+          "Play"]
+         [:button.btn.btn-primary
+          {:on-click (fn [e]
+                       (tour-pause! ui-state))}
+          [:span.glyphicon.glyphicon-pause {:aria-hidden "true"}]
+          "Pause"])]]
+     [:div.col-xs-9
+       [:div.form-horizontal
+        [:label "full tour: "]
+        [:input
+         {:style {:display "inline-block"
+                  :width "85%"}
+          :type "range"
+          :min -1000
+          :max 0
+          :value (:scrub @ui-state)
+          :on-change (fn [e]
+                       (let [x (-> e .-target forms/getValue)]
+                         (swap! ui-state assoc :scrub x)
+                         (tour-scrub! ui-state)))}]]
+       [:div.form-horizontal
+        [:label "detail: "]
+        [:input
+         {:style {:display "inline-block"
+                  :width "85%"}
+          :type "range"
+          :min -1000
+          :max 0
+          :value (:scrub-detail @ui-state)
+          :on-change (fn [e]
+                       (let [x (-> e .-target forms/getValue)]
+                         (swap! ui-state assoc :scrub-detail x)
+                         (tour-scrub! ui-state)))}]]]]]])
 
 (defn settings-pane
   [app-state ui-state]
@@ -224,7 +278,7 @@
           ;; Weights
           (when-not (:animating? @ui-state)
             [:div.row
-             [:div.col-sm-3
+             [:div.col-xs-3
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
@@ -232,65 +286,21 @@
                                            (:selection @ui-state)))
                 :disabled disabled}
                "Random weights"]]
-             [:div.col-sm-3
+             [:div.col-xs-3
               [:button.btn.btn-default
                {:on-click (fn [e]
-                            (tour-go! app-state ui-state 1))
+                            (tour-start! app-state ui-state 1))
                 :disabled disabled}
                "Weight tour (ones)"]]
-             [:div.col-sm-3
+             [:div.col-xs-3
               [:button.btn.btn-primary
                {:on-click (fn [e]
-                            (tour-go! app-state ui-state 3))
+                            (tour-start! app-state ui-state 3))
                 :disabled disabled}
                "Weight tour (triples)"]]])
           ;; In-tour controls
           (when (:animating? @ui-state)
-            [:div.row
-             [:div.col-sm-3
-              [:div.form-inline
-               [:button.btn.btn-danger
-                {:on-click (fn [e]
-                             (tour-stop! app-state ui-state))}
-                "End"]
-               (if (:paused? @ui-state)
-                 [:button.btn.btn-success
-                  {:on-click (fn [e]
-                               (tour-continue! ui-state))}
-                  [:span.glyphicon.glyphicon-play {:aria-hidden "true"}]
-                  "Play"]
-                 [:button.btn.btn-primary
-                  {:on-click (fn [e]
-                               (tour-pause! ui-state))}
-                  [:span.glyphicon.glyphicon-pause {:aria-hidden "true"}]
-                  "Pause"])]]
-             [:div.col-sm-9
-               [:div.form-horizontal
-                [:label "global: "]
-                [:input
-                 {:style {:display "inline-block"
-                          :width "85%"}
-                  :type "range"
-                  :min -1000
-                  :max 0
-                  :value (:scrub @ui-state)
-                  :on-change (fn [e]
-                               (let [x (-> e .-target forms/getValue)]
-                                 (swap! ui-state assoc :scrub x :paused? true)
-                                 (tour-scrub! ui-state)))}]]
-               [:div.form-horizontal
-                [:label "detail: "]
-                [:input
-                 {:style {:display "inline-block"
-                          :width "85%"}
-                  :type "range"
-                  :min -1000
-                  :max 0
-                  :value (:scrub-detail @ui-state)
-                  :on-change (fn [e]
-                               (let [x (-> e .-target forms/getValue)]
-                                 (swap! ui-state assoc :scrub-detail x :paused? true)
-                                 (tour-scrub! ui-state)))}]]]])
+            [tour-controls app-state ui-state])
           ;; SVG
           [:div.row
             [:div.col-lg-12
@@ -327,21 +337,21 @@
                       (name type)]))]]]]]])
           ;; Topology controls
           [:div.row
-            [:div.col-sm-3
+            [:div.col-xs-3
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
                                            cppnx/mutate-append-node))
                 :disabled disabled}
                "Append node"]]
-            [:div.col-sm-3
+            [:div.col-xs-3
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
                                            cppnx/mutate-add-conn))
                 :disabled disabled}
                "Add connection"]]
-            [:div.col-sm-3
+            [:div.col-xs-3
               [:button.btn.btn-default
                {:on-click (fn [e]
                             (swap-advance! app-state update :cppn
@@ -355,10 +365,23 @@
             [:pre
               (with-out-str (fipp.edn/pprint (:cppn @app-state)))]]]))))
 
+(def backdrop-style
+  {:position         "fixed"
+   :left             "0px"
+   :top              "0px"
+   :width            "100%"
+   :height           "100%"
+   :background-color "black"
+   :opacity          0.8})
+
 (defn view-pane
   [app-state ui-state]
   (let []
     [:div
+     [:div.backdrop
+      {:style (cond-> backdrop-style
+                (not (:animating? @ui-state))
+                (assoc :display "none"))}]
      [:div.row
       [:div.col-lg-12
        [glcanvas
@@ -369,8 +392,9 @@
         600 600
         [app-state]
         (fn [gl]
-          (let [info (gl-setup gl @app-state)]
-            (gl-render info (:ws info))))]]]]))
+          (when-not (:animating? @ui-state)
+            (let [info (gl-setup gl @app-state)]
+              (gl-render info (:ws info)))))]]]]))
 
 (defn snapshots-pane
   [app-state ui-state]
@@ -402,7 +426,7 @@
 
 (defn navbar
   [app-state ui-state]
-  (let []
+  (let [freeze? (:animating? @ui-state)]
     [:nav.navbar.navbar-default
      [:div.container-fluid
       [:div.navbar-header
@@ -449,7 +473,8 @@
            :on-click
            (fn [_]
              (snapshot! app-state ui-state))
-           :title "Take snapshot"}
+           :title "Take snapshot"
+           :disabled (when freeze? "disabled")}
           [:span.glyphicon.glyphicon-camera {:aria-hidden "true"}]
           " Snapshot"]]]
        ;; domain
