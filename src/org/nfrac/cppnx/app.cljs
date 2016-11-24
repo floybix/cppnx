@@ -21,11 +21,14 @@
   (atom {:cppn gl-img/start-cppn
          :snapshots ()}))
 
+(def init-ui-state
+  {:selection nil
+   :perturbation 1.0
+   :scrub 0
+   :scrub-detail 0})
+
 (defonce ui-state
-  (atom {:selection nil
-         :perturbation 1.0
-         :scrub 0
-         :scrub-detail 0}))
+  (atom init-ui-state))
 
 (defonce undo-buffer
   (atom ()))
@@ -204,12 +207,8 @@
     [:b "Weights tour"]]
    [:div.panel-body
     [:div.row
-     [:div.col-xs-3
-      [:div.form-inline
-       [:button.btn.btn-danger
-        {:on-click (fn [e]
-                     (tour-stop! app-state ui-state))}
-        "End"]
+     [:div.col-xs-2
+      [:div.btn-group-vertical
        (if (:paused? @ui-state)
          [:button.btn.btn-success
           {:on-click (fn [e]
@@ -220,13 +219,20 @@
           {:on-click (fn [e]
                        (tour-pause! ui-state))}
           [:span.glyphicon.glyphicon-pause {:aria-hidden "true"}]
-          "Pause"])]]
-     [:div.col-xs-9
+          "Pause"])
+       [:button.btn.btn-danger
+        {:on-click (fn [e]
+                     (tour-stop! app-state ui-state))}
+        "End"]]]
+     [:div.col-xs-10
        [:div.form-horizontal
-        [:label "full tour: "]
+        [:label
+         {:style {:display "inline-block"
+                  :width "20%"}}
+         "full tour: "]
         [:input
          {:style {:display "inline-block"
-                  :width "85%"}
+                  :width "75%"}
           :type "range"
           :min -1000
           :max 0
@@ -236,10 +242,13 @@
                          (swap! ui-state assoc :scrub x)
                          (tour-scrub! ui-state)))}]]
        [:div.form-horizontal
-        [:label "detail: "]
+        [:label
+         {:style {:display "inline-block"
+                  :width "20%"}}
+         "detail: "]
         [:input
          {:style {:display "inline-block"
-                  :width "85%"}
+                  :width "75%"}
           :type "range"
           :min -1000
           :max 0
@@ -255,29 +264,29 @@
    [:div.panel-heading
     [:b "Parameter changes"]]
    [:div.panel-body
-    [:div.row
-     [:div.col-xs-3
-      [:button.btn.btn-default
+    [:div.btn-group.btn-group-justified
+     [:div.btn-group
+      [:button.btn.btn-primary
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/randomise-weights
                                    (:perturbation @ui-state)
                                    (:selection @ui-state)))}
        "Vary weights"]]
-     [:div.col-xs-3
+     [:div.btn-group
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (tour-start! app-state ui-state 1))}
        "Weight tour (x1)"]]
-     [:div.col-xs-3
-      [:button.btn.btn-primary
+     [:div.btn-group
+      [:button.btn.btn-default
        {:on-click (fn [e]
                     (tour-start! app-state ui-state 3))}
        "Weight tour (x3)"]]]
     [:div.row
      [:div.col-lg-12
       [:div
-        [:label "small"]
+        [:label "tweak"]
         [:input
          {:style {:display "inline-block"
                   :margin "1ex"
@@ -289,7 +298,7 @@
           :on-change (fn [e]
                        (let [x (-> e .-target forms/getValue)]
                          (swap! ui-state assoc :perturbation (/ x 100))))}]
-        [:label "large"]]]]]])
+        [:label "overhaul"]]]]]])
 
 (defn topology-controls
   [app-state ui-state]
@@ -297,25 +306,25 @@
    [:div.panel-heading
     [:b "Structure changes"]]
    [:div.panel-body
-    [:div.row
-     [:div.col-xs-3
+    [:div.btn-group.btn-group-justified
+     [:div.btn-group
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-append-node))}
        "Append node"]]
-     [:div.col-xs-3
+     [:div.btn-group
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-add-conn))}
-       "Add connection"]]
-     [:div.col-xs-3
+       "Random connection"]]
+     [:div.btn-group
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-rewire-conn))}
-       "Rewire connection"]]]]])
+       "Random rewire"]]]]])
 
 (defn settings-pane
   [app-state ui-state]
@@ -465,6 +474,7 @@
       [:div
        [:ul.nav.navbar-nav
         ;; step back
+        #_
         [:li
          [:button.btn.btn-default.navbar-btn
           {:type :button
@@ -479,6 +489,7 @@
           [:span.glyphicon.glyphicon-step-backward {:aria-hidden "true"}]
           " Undo"]]
         ;; step forward
+        #_
         (when-not (empty? @redo-buffer)
           [:li
            [:button.btn.btn-default.navbar-btn
@@ -505,7 +516,7 @@
           " Snapshot"]]
         [:li
          [:p.navbar-text
-          (str " (see bottom of page)")]]]
+          (str " (appears at bottom of page)")]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
