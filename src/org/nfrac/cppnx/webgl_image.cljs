@@ -82,11 +82,13 @@
       (.uniform1f gl loc w-val)))
   gl)
 
+(def vx-data
+  (js/Float32Array. #js [1 1, -1 1, 1 -1, -1 -1]))
+
 (defn render
   [gl-info w-vals]
   (let [gl (:gl gl-info)
         pgm (:gl-program gl-info)
-        vx-data (js/Float32Array. #js [1 1, -1 1, 1 -1, -1 -1])
         buf (:vertex-buffer gl-info)]
     (doto gl
       (.clear (.-COLOR_BUFFER_BIT gl))

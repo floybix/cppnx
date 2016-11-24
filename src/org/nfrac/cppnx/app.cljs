@@ -463,10 +463,6 @@
              :disabled (when (empty? @redo-buffer) "disabled")}
             [:span.glyphicon.glyphicon-step-forward {:aria-hidden "true"}]
             " Redo"]])
-        ;; timestep
-        [:li
-         [:p.navbar-text
-          (str " ")]]
         [:li
          [:button.btn.btn-default.navbar-btn
           {:type :button
@@ -476,7 +472,10 @@
            :title "Take snapshot"
            :disabled (when freeze? "disabled")}
           [:span.glyphicon.glyphicon-camera {:aria-hidden "true"}]
-          " Snapshot"]]]
+          " Snapshot"]]
+        [:li
+         [:p.navbar-text
+          (str " (see bottom of page)")]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
@@ -501,13 +500,13 @@
    [navbar app-state ui-state]
    [:div.container-fluid
     [:div.row
-     [:div.col-lg-12
-      [snapshots-pane app-state ui-state]]]
-    [:div.row
      [:div.col-lg-6.col-md-8
       [view-pane app-state ui-state]]
      [:div.col-lg-6.col-md-4
-      [settings-pane app-state ui-state]]]]])
+      [settings-pane app-state ui-state]]]
+    [:div.row
+     [:div.col-lg-12
+      [snapshots-pane app-state ui-state]]]]])
 
 (reagent/render-component [app-pane app-state ui-state]
                           (. js/document (getElementById "app")))
