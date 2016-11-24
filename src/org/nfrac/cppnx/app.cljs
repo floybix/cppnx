@@ -308,7 +308,7 @@
    [:div.panel-heading
     [:b "Structure changes"]
     [:span.small.text-muted
-     " ...just drag btwn nodes to add or remove links. click a node to edit it."]]
+     " ...just drag between nodes to add or remove links. click a node to edit it."]]
    [:div.panel-body
     [:div.btn-group.btn-group-justified
      [:div.btn-group
@@ -329,6 +329,35 @@
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-rewire-conn))}
        "Random rewire"]]]]])
+
+(defn node-controls
+  [app-state ui-state sel]
+  [:div.row
+   [:div.col-lg-12
+    [:div.panel.panel-primary
+     [:div.panel-heading
+      [:b "Selected node"]]
+     [:div.panel-body.form-inline
+      [:button.btn.btn-default
+       {:on-click (fn [e]
+                    (swap-advance! app-state update :cppn
+                                   cppnx/delete-node sel)
+                    (swap! ui-state assoc :selection nil))}
+       "Delete"]
+      [:div.form-group
+       [:label "Function:"]
+       [:select.form-control
+        {:value (-> @app-state :cppn :nodes (get sel) name)
+         :on-change (fn [e]
+                      (let [s (-> e .-target forms/getValue)
+                            type (keyword s)]
+                        (swap! app-state assoc-in
+                               [:cppn :nodes sel] type)))}
+        (doall
+         (for [type cppnx/all-node-types]
+           [:option {:key (name type)
+                     :value (name type)}
+            (name type)]))]]]]]])
 
 (defn settings-pane
   [app-state ui-state]
@@ -354,11 +383,9 @@
            (swap-advance! app-state f))
         (recur)))
     (fn [_ _]
-      (let [cppn (:cppn @app-state)
-            freeze? (:animating? @ui-state)
-            disabled (when freeze? "disabled")]
+      (let [cppn (:cppn @app-state)]
         [:div
-          ;; Weights
+          ;; Weight controls
           (when-not (:animating? @ui-state)
             [weights-controls app-state ui-state])
           ;; In-tour controls
@@ -371,42 +398,26 @@
           ;; Selection controls
           (when-let [sel (let [s (:selection @ui-state)]
                            (when (contains? (:nodes cppn) s) s))]
-            [:div.row
-             [:div.col-lg-12
-              [:div.panel.panel-primary
-               [:div.panel-heading
-                [:b "Selected node"]]
-               [:div.panel-body.form-inline
-                [:button.btn.btn-default
-                 {:on-click (fn [e]
-                              (swap-advance! app-state update :cppn
-                                             cppnx/delete-node sel)
-                              (swap! ui-state assoc :selection nil))
-                  :disabled (when freeze? "disabled")}
-                 "Delete"]
-                [:div.form-group
-                 [:label "Function:"]
-                 [:select.form-control
-                  {:value (-> cppn :nodes (get sel) name)
-                   :on-change (fn [e]
-                                (let [s (-> e .-target forms/getValue)
-                                      type (keyword s)]
-                                  (swap! app-state assoc-in
-                                         [:cppn :nodes sel] type)))}
-                  (doall
-                   (for [type cppnx/all-node-types]
-                     [:option {:key (name type)
-                               :value (name type)}
-                      (name type)]))]]]]]])
+            [node-controls app-state ui-state sel])
           ;; Topology controls
           (when-not (:animating? @ui-state)
             [topology-controls app-state ui-state])
           ;; Source
-          [:div.row
-            [:p
-              "CPPN data"]
-            [:pre
-              (with-out-str (fipp.edn/pprint (:cppn @app-state)))]]]))))
+          [:div
+           [:div.panel.panel-default
+            [:div.panel-heading
+              [:b
+               "Data / code "]
+             [:button.btn.btn-default.btn-sm
+              {:on-click
+               (fn [e]
+                 (swap! ui-state update :show-code? #(not %)))}
+              (if (:show-code? @ui-state) "hide" "show")]]
+            (when (:show-code? @ui-state)
+              [:div.panel-body
+               [:pre
+                (with-out-str
+                 (fipp.edn/pprint (:cppn @app-state)))]])]]]))))
 
 (def backdrop-style
   {:position         "fixed"
