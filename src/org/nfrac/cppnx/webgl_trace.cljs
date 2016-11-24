@@ -28,7 +28,7 @@
   (let [in-exprs {:bias 1.0, :t a-t, :z a-z}
         out-exprs (cppnx/build-cppn-vals cppn in-exprs w-exprs)
         z01 (g/+ (g/* a-z 0.5) 0.5)
-        col (g/vec4 (hsv2rgb-glsl z01 0.5 1) 1)]
+        col (g/vec4 (hsv2rgb-glsl z01 0.75 0.8) 1)]
     {(g/gl-position) (g/vec4 a-t
                              (:y out-exprs)
                              0 1)
@@ -50,7 +50,7 @@
         fs  (.createShader gl ggl/FRAGMENT_SHADER)
         pgm (.createProgram gl)]
     (doto gl
-      (.clearColor 0 0 0 1)
+      (.clearColor 1 1 1 1)
       (.lineWidth 4)
       (.shaderSource vs (-> program :vertex-shader :glsl))
       (.compileShader vs)
@@ -80,7 +80,7 @@
   gl)
 
 (def t-vals
-  (range -1.0 1.0 (/ 1 600)))
+  (range -1.01 1.01 (/ 1 600)))
 
 (defn mirrored [xs] (concat (map - xs) (reverse xs)))
 
