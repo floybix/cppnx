@@ -238,7 +238,7 @@
           :max 0
           :value (:scrub @ui-state)
           :on-change (fn [e]
-                       (let [x (-> e .-target forms/getValue)]
+                       (let [x (-> e .-target forms/getValue js/parseFloat)]
                          (swap! ui-state assoc :scrub x)
                          (tour-scrub! ui-state)))}]]
        [:div.form-horizontal
@@ -254,7 +254,7 @@
           :max 0
           :value (:scrub-detail @ui-state)
           :on-change (fn [e]
-                       (let [x (-> e .-target forms/getValue)]
+                       (let [x (-> e .-target forms/getValue js/parseFloat)]
                          (swap! ui-state assoc :scrub-detail x)
                          (tour-scrub! ui-state)))}]]]]]])
 
@@ -331,33 +331,61 @@
        "Random rewire"]]]]])
 
 (defn node-controls
-  [app-state ui-state sel]
-  [:div.row
-   [:div.col-lg-12
-    [:div.panel.panel-primary
-     [:div.panel-heading
-      [:b "Selected node"]]
-     [:div.panel-body.form-inline
-      [:button.btn.btn-default
-       {:on-click (fn [e]
-                    (swap-advance! app-state update :cppn
-                                   cppnx/delete-node sel)
-                    (swap! ui-state assoc :selection nil))}
-       "Delete"]
-      [:div.form-group
-       [:label "Function:"]
-       [:select.form-control
-        {:value (-> @app-state :cppn :nodes (get sel) name)
-         :on-change (fn [e]
-                      (let [s (-> e .-target forms/getValue)
-                            type (keyword s)]
-                        (swap! app-state assoc-in
-                               [:cppn :nodes sel] type)))}
-        (doall
-         (for [type cppnx/all-node-types]
-           [:option {:key (name type)
-                     :value (name type)}
-            (name type)]))]]]]]])
+  [app-state ui-state sel fun-node?]
+  [:div.panel.panel-primary
+   [:div.panel-heading
+    [:b "Selected node"]]
+   [:div.panel-body
+    [:div.form-inline
+     (when fun-node?
+       [:button.btn.btn-default
+        {:style {:margin-right "1ex"}
+         :on-click (fn [e]
+                     (swap-advance! app-state update :cppn
+                                    cppnx/delete-node sel)
+                     (swap! ui-state assoc :selection nil))}
+        "Delete"])
+     (when fun-node?
+       [:div.form-group
+        [:label "Function:"]
+        [:select.form-control
+         {:value (-> @app-state :cppn :nodes (get sel) name)
+          :on-change (fn [e]
+                       (let [s (-> e .-target forms/getValue)
+                             type (keyword s)]
+                         (swap-advance! app-state assoc-in
+                                        [:cppn :nodes sel] type)))}
+         (doall
+          (for [type cppnx/all-node-types]
+            [:option {:key (name type)
+                      :value (name type)}
+             (name type)]))]])
+     [:span
+      " Incoming edge weights:"]]
+    (let [cppn (:cppn @app-state)]
+      (doall
+        (for [[from-node w] (-> cppn :edges sel sort)
+              :let [from-label (name (or (get (:nodes cppn) from-node)
+                                         from-node))]]
+          ^{:key from-node}
+          [:div
+           [:label
+            {:style {:display "inline-block"
+                     :width "20%"}}
+            (str from-label ": "
+                 (-> w (* 100) int (/ 100)))]
+           [:input
+            {:style {:display "inline-block"
+                     :width "75%"}
+             :type "range"
+             :min -16
+             :max 16
+             :step 0.01
+             :value w
+             :on-change (fn [e]
+                          (let [x (-> e .-target forms/getValue js/parseFloat)]
+                            (swap! app-state assoc-in [:cppn :edges sel from-node]
+                                   x)))}]])))]])
 
 (defn settings-pane
   [app-state ui-state]
@@ -396,9 +424,8 @@
             [:div.col-lg-12
               [svg/cppn-svg cppn (:selection @ui-state) svg-events-c]]]
           ;; Selection controls
-          (when-let [sel (let [s (:selection @ui-state)]
-                           (when (contains? (:nodes cppn) s) s))]
-            [node-controls app-state ui-state sel])
+          (when-let [sel (:selection @ui-state)]
+            [node-controls app-state ui-state sel (contains? (:nodes cppn) sel)])
           ;; Topology controls
           (when-not (:animating? @ui-state)
             [topology-controls app-state ui-state])
@@ -524,14 +551,16 @@
           {:type :button
            :on-click
            (fn [_]
-             (snapshot! app-state ui-state))
+             (snapshot! app-state ui-state)
+             (swap! ui-state assoc :did-snapshot? true))
            :title "Take snapshot"
            :disabled (when freeze? "disabled")}
           [:span.glyphicon.glyphicon-camera {:aria-hidden "true"}]
           " Snapshot"]]
-        [:li
-         [:p.navbar-text
-          (str " (will appear at bottom of page)")]]]
+        (when (:did-snapshot? @ui-state) ;; draw attention on first click
+          [:li
+           [:p.navbar-text
+            " (appears at bottom of page)"]])]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
@@ -552,8 +581,8 @@
        ;; right-aligned items
        [:ul.nav.navbar-nav.navbar-right
         [:li
-         [:p.navbar-text.text-muted
-          " feel free to use browser back/forward!"]]]]]]))
+         [:p.navbar-text
+          " use browser back/forward as undo/redo!"]]]]]]))
 
 (defn app-pane
   [app-state ui-state]

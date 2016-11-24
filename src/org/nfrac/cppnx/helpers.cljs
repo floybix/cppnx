@@ -38,7 +38,7 @@
   [component gl]
   ;; argv contains entire hiccup form, so it's shifted one to the right.
   (let [[_ _ _ _ _ draw] (reagent/argv component)]
-    (draw gl)))
+    (when gl (draw gl))))
 
 (defn glcanvas [_ _ _ _ _]
   (let [state (clojure.core/atom {})]
@@ -53,19 +53,21 @@
        :component-did-update
        (fn [component]
          (glcanvas$call-draw-fn component (:gl @state)))
-       
+
        :component-will-unmount
        (fn [component]
          (swap! state dissoc :gl))
 
        :display-name "glcanvas"
 
-       :reagent-render (fn [props width height canaries _]
+       :reagent-render (fn [props width height canaries draw]
                       ;; Need to deref all atoms consumed by draw function to
                       ;; subscribe to changes.
                          (doseq [v canaries]
                            (when (satisfies? IDeref v)
                              @v))
                          [:canvas (assoc props
+                                         ;; kind of a hack to force redraw
+                                         :on-click #(draw (:gl @state))
                                          :width width
                                          :height height)])})))
