@@ -10,41 +10,34 @@
 (def start-cppn
   {:domain :lines
    :inputs #{:bias :z}
-   :outputs #{:r :a :r2 :a2 :v}
-   :nodes {:init :gaussian
-           :init2 :linear
-           :init3 :linear}
-   :edges {:init {:z 1.0}
-           :init2 {:init 1.0
-                   :bias 1.0}
-           :init3 {:init 1.0
-                   :bias 1.0}
-           :r {:init2 1.0}
-           :a {:init3 0.5}
-           :r2 {:init2 0.9}
-           :a2 {:init3 -0.5}
-           :v {:init2 1.0}}})
+   :outputs #{:r :a :h :s :v}
+   :nodes {:init :gaussian}
+   :edges {:init {:z 1.0
+                  :bias 1.0}
+           :r {:init 1.0}
+           :a {:init 1.0}
+           :h {:init 1.0}
+           :s {:init 1.0}
+           :v {:init 1.0}}})
 
-(def a-variate (g/attribute "a_variate" :float))
-
-(def a-vx-index (g/attribute "a_vxindex" :float))
+(def a-z (g/attribute "a_z" :float))
 
 (def v-color (g/varying "v_color" :vec4 :highp))
 
 (defn vertex-shader
   [cppn w-exprs]
-  (let [in-exprs {:bias 1.0, :z a-variate}
+  (let [in-exprs {:bias 1.0, :z a-z}
         out-exprs (cppnx/build-cppn-vals cppn in-exprs w-exprs)
-        v01 (g/+ (g/* (:v out-exprs) 0.5) 0.5)
-        col (g/vec4 v01 v01 v01 1.0)]
-    {(g/gl-position) (g/vec4 (g/if (g/== 0 a-vx-index)
-                                   (g/* (:r out-exprs)
-                                        (g/vec2 (g/cos (g/* 3.14 (:a out-exprs)))
-                                                (g/sin (g/* 3.14 (:a out-exprs)))))
-                                   (g/* (:r2 out-exprs)
-                                        (g/vec2 (g/cos (g/* 3.14 (:a2 out-exprs)))
-                                                (g/sin (g/* 3.14 (:a2 out-exprs))))))
-                             0 1)
+        xy (g/* (:r out-exprs)
+                (g/vec2 (g/cos (g/* 3.1415 (:a out-exprs)))
+                        (g/sin (g/* 3.1415 (:a out-exprs)))))
+        ;; for colours, convert [-1 1] to [0 1]
+        out-exprs-01 (remap #(g/+ (g/* % 0.5) 0.5) out-exprs)
+        col (g/vec4 (hsv2rgb-glsl (:h out-exprs-01)
+                                  (:s out-exprs-01)
+                                  (:v out-exprs-01))
+                    0.5)]
+    {(g/gl-position) (g/vec4 xy 0 1)
      v-color col}))
 
 (def fragment-shader
@@ -64,6 +57,9 @@
         pgm (.createProgram gl)]
     (doto gl
       (.clearColor 0 0 0 1)
+      (.enable ggl/BLEND)
+      (.blendFuncSeparate ggl/SRC_ALPHA ggl/ONE_MINUS_SRC_ALPHA ggl/ONE ggl/ONE_MINUS_SRC_ALPHA)
+      (.lineWidth 4)
       (.shaderSource vs (-> program :vertex-shader :glsl))
       (.compileShader vs)
       (.shaderSource fs (-> program :fragment-shader :glsl))
@@ -81,8 +77,7 @@
      :gl-program pgm
      :w-uniforms w-uniforms
      :ws ws
-     :vertex-buffer (.createBuffer gl)
-     :vindex-buffer (.createBuffer gl)}))
+     :z-buffer (.createBuffer gl)}))
 
 (defn load-weights
   [gl info w-vals]
@@ -91,39 +86,22 @@
       (.uniform1f gl loc w-val)))
   gl)
 
-(def variate-vals
-  (range -1.0 1.0 (/ 1 2500)))
-
-(def vx-data
+(def z-data
   (js/Float32Array.
-    (for [z variate-vals
-          _ (range 2)]
-      z)))
-
-(def vi-data
-  (js/Float32Array.
-    (for [_ variate-vals
-          i (range 2)]
-      i)))
+    (range -1.0 1.0 (/ 1 100000))))
 
 (defn render
   [gl-info w-vals]
   (let [gl (:gl gl-info)
         pgm (:gl-program gl-info)
-        buf (:vertex-buffer gl-info)
-        ibuf (:vindex-buffer gl-info)]
+        zbuf (:z-buffer gl-info)]
     (doto gl
       (.clear (.-COLOR_BUFFER_BIT gl))
-      (.bindBuffer ggl/ARRAY_BUFFER buf)
-      (.bufferData ggl/ARRAY_BUFFER vx-data ggl/STATIC_DRAW)
-      (.enableVertexAttribArray (.getAttribLocation gl pgm (:name a-variate)))
-      (.vertexAttribPointer (.getAttribLocation gl pgm (:name a-variate))
-        1 ggl/FLOAT false 0 0)
-      (.bindBuffer ggl/ARRAY_BUFFER ibuf)
-      (.bufferData ggl/ARRAY_BUFFER vi-data ggl/STATIC_DRAW)
-      (.enableVertexAttribArray (.getAttribLocation gl pgm (:name a-vx-index)))
-      (.vertexAttribPointer (.getAttribLocation gl pgm (:name a-vx-index))
+      (.bindBuffer ggl/ARRAY_BUFFER zbuf)
+      (.bufferData ggl/ARRAY_BUFFER z-data ggl/STATIC_DRAW)
+      (.enableVertexAttribArray (.getAttribLocation gl pgm (:name a-z)))
+      (.vertexAttribPointer (.getAttribLocation gl pgm (:name a-z))
         1 ggl/FLOAT false 0 0)
       (.useProgram pgm)
       (load-weights gl-info w-vals)
-      (.drawArrays ggl/TRIANGLE_STRIP 0 (.-length vx-data)))))
+      (.drawArrays ggl/LINE_STRIP 0 (.-length z-data)))))
