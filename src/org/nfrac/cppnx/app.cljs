@@ -33,12 +33,6 @@
 (defonce ui-state
   (atom init-ui-state))
 
-(defonce undo-buffer
-  (atom ()))
-
-(defonce redo-buffer
-  (atom ()))
-
 (defn generate-mutants
   [cppn ui-state]
   (let [perturbation (:perturbation @ui-state)
@@ -61,10 +55,6 @@
 (defn swap-advance!
   "ref = app-state"
   [ref f & more]
-  ;; record state for undo
-  (swap! undo-buffer conj @ref)
-  (when (seq @redo-buffer)
-    (reset! redo-buffer ()))
   (let [x (apply swap! ref f more)
         uri (share/uri-with-cppn (dissoc (:cppn x) :inputs :outputs))]
     (.pushState js/history (hash x) "cppnx" uri)
@@ -610,37 +600,6 @@
         "cppnx."]]
       [:div
        [:ul.nav.navbar-nav
-        ;; step back
-        #_
-        [:li
-         [:button.btn.btn-default.navbar-btn
-          {:type :button
-           :on-click
-           (fn [_]
-             (let [new-state (peek @undo-buffer)]
-               (swap! undo-buffer pop)
-               (swap! redo-buffer conj @app-state)
-               (reset! app-state new-state)))
-           :title "Step backward in time"
-           :disabled (when (empty? @undo-buffer) "disabled")}
-          [:span.glyphicon.glyphicon-step-backward {:aria-hidden "true"}]
-          " Undo"]]
-        ;; step forward
-        #_
-        (when-not (empty? @redo-buffer)
-          [:li
-           [:button.btn.btn-default.navbar-btn
-            {:type :button
-             :on-click
-             (fn [_]
-               (let [new-state (peek @redo-buffer)]
-                 (swap! redo-buffer pop)
-                 (swap! undo-buffer conj @app-state)
-                 (reset! app-state new-state)))
-             :title "Step forward in time"
-             :disabled (when (empty? @redo-buffer) "disabled")}
-            [:span.glyphicon.glyphicon-step-forward {:aria-hidden "true"}]
-            " Redo"]])
         [:li
          [:button.btn.btn-default.navbar-btn
           {:type :button
