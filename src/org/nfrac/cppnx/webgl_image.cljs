@@ -43,9 +43,8 @@
                                              (:v out-exprs-01)) 1)}))
 
 (defn setup
-  [gl state]
-  (let [cppn (:cppn state)
-        ws (cppnx/cppn-weights cppn)
+  [gl cppn]
+  (let [ws (cppnx/cppn-weights cppn)
         w-uniforms (map #(g/uniform (str "u_weight" %) :float) (range (count ws)))
         w-exprs (zipmap (cppnx/edge-list cppn) w-uniforms)
         program (p/program {:vertex-shader vertex-shader
@@ -69,7 +68,8 @@
       (println "Fragment shader log:" (.getShaderInfoLog gl fs))
       (println "Fragment shader glsl:")
       (println (-> program :fragment-shader :glsl)))
-    {:gl gl
+    {:domain (:domain cppn)
+     :gl gl
      :gl-program pgm
      :w-uniforms w-uniforms
      :ws ws

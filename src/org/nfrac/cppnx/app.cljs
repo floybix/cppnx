@@ -19,6 +19,7 @@
 
 (defonce app-state
   (atom {:cppn gl-img/start-cppn
+         :mutants []
          :snapshots ()}))
 
 (def init-ui-state
@@ -26,7 +27,8 @@
    :perturbation 0.5
    :seconds-per-move 1.3
    :scrub 0
-   :scrub-detail 0})
+   :scrub-detail 0
+   :n-mutants 6})
 
 (defonce ui-state
   (atom init-ui-state))
@@ -36,6 +38,25 @@
 
 (defonce redo-buffer
   (atom ()))
+
+(defn generate-mutants
+  [cppn ui-state]
+  (let [perturbation (:perturbation @ui-state)
+        ms (for [i (range (:n-mutants @ui-state))]
+             (-> (cond
+                   (< (rand) 0.33)
+                   (cppnx/mutate-append-node cppn)
+                   (< (rand) 0.5)
+                   (cppnx/mutate-add-conn cppn)
+                   :else
+                   (cppnx/mutate-rewire-conn cppn))
+                 (cppnx/randomise-weights perturbation nil)))]
+    (vec ms)))
+
+(defn on-new-cppn!
+  []
+  (let [cppn (:cppn @app-state)]
+    (swap! app-state assoc :mutants (generate-mutants cppn ui-state))))
 
 (defn swap-advance!
   "ref = app-state"
@@ -47,6 +68,7 @@
   (let [x (apply swap! ref f more)
         uri (share/uri-with-cppn (dissoc (:cppn x) :inputs :outputs))]
     (.pushState js/history (hash x) "cppnx" uri)
+    (on-new-cppn!)
     x))
 
 (def all-domains [:image :lines :trace])
@@ -68,38 +90,41 @@
 ;;; not on-load after page load, because that flashes default cppn
 (when-let [c (get-uri-cppn-full)]
   (swap! app-state assoc :cppn c))
+(on-new-cppn!)
 
 (defonce
   onpopstate
   (set! (.-onpopstate js/window)
     (fn [e]
       (when-let [c (get-uri-cppn-full)]
-        (swap! app-state assoc :cppn c)))))
+        (swap! app-state assoc :cppn c)
+        (on-new-cppn!)))))
 
 
 (defn gl-setup
-  [gl state]
-  (case (:domain (:cppn @app-state))
-    :image (gl-img/setup gl state)
-    :lines (gl-lines/setup gl state)
-    :trace (gl-trace/setup gl state)))
+  [gl cppn]
+  (case (:domain cppn)
+    :image (gl-img/setup gl cppn)
+    :lines (gl-lines/setup gl cppn)
+    :trace (gl-trace/setup gl cppn)))
 
 (defn gl-render
   [info ws]
-  (case (:domain (:cppn @app-state))
+  (case (:domain info)
     :image (gl-img/render info ws)
     :lines (gl-lines/render info ws)
     :trace (gl-trace/render info ws)))
 
 (def gl-canvas-class "cppnx-main-canvas")
 (def gl-snap-canvas-class "cppnx-snap-canvas")
+(def gl-mutant-canvas-class "cppnx-mutant-canvas")
 
 (defn snapshot!
   [app-state ui-state]
   (let [el (dom/getElementByClass gl-snap-canvas-class)
         _ (classes/swap el "hidden" "show")
         gl (.getContext el "webgl")
-        info (gl-setup gl @app-state)]
+        info (gl-setup gl (:cppn @app-state))]
     (gl-render info (:ws info))
     (when-not (contains? (set (map :cppn (:snapshots @app-state)))
                          (:cppn @app-state))
@@ -134,7 +159,7 @@
            :gl-info-ref gl-info-ref
            :anim-start (.getTime (js/Date.)))
     (reset! gl-info-ref
-            (assoc (gl-setup gl @app-state)
+            (assoc (gl-setup gl (:cppn @app-state))
                    :tour tour
                    :last-rendered (.getTime (js/Date.))))
     (animate
@@ -205,7 +230,9 @@
   [app-state ui-state]
   [:div.panel.panel-primary
    [:div.panel-heading
-    [:b "Weights tour"]]
+    [:b "Weights tour"]
+    [:span.small
+     " ...if you miss something, scrub back in time with the sliders."]]
    [:div.panel-body
     [:div.row
      [:div.col-xs-2
@@ -282,6 +309,23 @@
     [:span.small.text-muted
      " ...oh btw, you can select a node to vary only its incoming edges."]]
    [:div.panel-body
+    [:div.row
+     [:div.col-lg-12
+      [:div
+        {:style {:padding-left "1em"}}
+        [:label "tweak"]
+        [:input
+         {:style {:display "inline-block"
+                  :margin "1ex"
+                  :width "70%"}
+          :type "range"
+          :min 1
+          :max 100
+          :value (int (* 100 (:perturbation @ui-state)))
+          :on-change (fn [e]
+                       (let [x (-> e .-target forms/getValue)]
+                         (swap! ui-state assoc :perturbation (/ x 100))))}]
+        [:label "overhaul"]]]]
     [:div.btn-group.btn-group-justified
      [:div.btn-group
       [:button.btn.btn-primary
@@ -300,23 +344,7 @@
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (tour-start! app-state ui-state 3))}
-       "Weight tour (x3)"]]]
-    [:div.row
-     [:div.col-lg-12
-      [:div
-        [:label "tweak"]
-        [:input
-         {:style {:display "inline-block"
-                  :margin "1ex"
-                  :width "70%"}
-          :type "range"
-          :min 1
-          :max 100
-          :value (int (* 100 (:perturbation @ui-state)))
-          :on-change (fn [e]
-                       (let [x (-> e .-target forms/getValue)]
-                         (swap! ui-state assoc :perturbation (/ x 100))))}]
-        [:label "overhaul"]]]]]])
+       "Weight tour (x3)"]]]]])
 
 (defn topology-controls
   [app-state ui-state]
@@ -324,8 +352,11 @@
    [:div.panel-heading
     [:b "Structure changes"]
     [:span.small.text-muted
-     " ...just drag between nodes to add or remove links. click a node to edit it."]]
+     " ...for an easier time, choose one of the mutants shown below the pic."]]
    [:div.panel-body
+    [:p.text-muted
+     (str "Just drag between nodes to add or remove links in the graph above."
+          " Click a node to edit it. Or make a random mutation:")]
     [:div.btn-group.btn-group-justified
      [:div.btn-group
       [:button.btn.btn-default
@@ -462,6 +493,51 @@
                 (with-out-str
                  (fipp.edn/pprint (:cppn @app-state)))]])]]]))))
 
+(defn mutants-pane
+  [app-state n-mutants show-mutants? animating?]
+  (let [mutants (:mutants @app-state)]
+    [:div
+     [:div.row
+      [:div.col-lg-12
+       [:div.checkbox
+        [:label
+         [:input
+          {:type :checkbox
+           :checked (when show-mutants? true)
+           :on-change
+           (fn [e]
+             (let [x (-> e .-target forms/getValue)]
+               (swap! ui-state update :show-mutants? #(not %))))}]
+         " Show some mutants (random structure & weight changes) "]
+        (when show-mutants?
+          [:span
+           [:span.small.text-muted " ...pick one!"]
+           [:button.btn.btn-default.btn-xs
+            {:style {:margin-left "2em"}
+             :on-click (fn [e]
+                         (let [cppn (:cppn @app-state)]
+                           (swap! app-state assoc :mutants
+                                  (generate-mutants cppn ui-state))))}
+            "Meh..."]])]]]
+     (when (and show-mutants? (not animating?))
+       [:div.row
+        [:div.col-lg-12
+         (for [[i cppn] (map-indexed vector mutants)]
+           ^{:key (str "mutant" i)}
+           [:div.pull-left
+            [glcanvas
+             {:class gl-mutant-canvas-class
+              :style {:margin-left "2px"
+                      :width "100px"
+                      :height "100px"}
+              :on-click (fn [e]
+                          (swap-advance! app-state assoc :cppn cppn))}
+             100 100
+             [app-state]
+             (fn [gl]
+                 (let [info (gl-setup gl cppn)]
+                   (gl-render info (:ws info))))]])]])]))
+
 (def backdrop-style
   {:position         "fixed"
    :left             "0px"
@@ -490,8 +566,11 @@
         [app-state]
         (fn [gl]
           (when-not (:animating? @ui-state)
-            (let [info (gl-setup gl @app-state)]
-              (gl-render info (:ws info)))))]]]]))
+            (let [info (gl-setup gl (:cppn @app-state))]
+              (gl-render info (:ws info)))))]]]
+     ;; pass derefd to avoid needless deref triggers
+     (let [{:keys [n-mutants show-mutants? animating?]} @ui-state]
+       [mutants-pane app-state n-mutants show-mutants? animating?])]))
 
 (defn snapshots-pane
   [app-state ui-state]
@@ -587,8 +666,8 @@
             :on-change (fn [e]
                          (let [s (-> e .-target forms/getValue)
                                domain (keyword s)]
-                           (swap! app-state assoc
-                                  :cppn (init-cppn domain))))}
+                           (swap-advance! app-state assoc
+                                          :cppn (init-cppn domain))))}
            (doall
             (for [domain all-domains]
               [:option {:key (name domain)

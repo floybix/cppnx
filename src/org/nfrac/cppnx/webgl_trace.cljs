@@ -38,9 +38,8 @@
   {(g/gl-frag-color) v-color})
 
 (defn setup
-  [gl state]
-  (let [cppn (:cppn state)
-        ws (cppnx/cppn-weights cppn)
+  [gl cppn]
+  (let [ws (cppnx/cppn-weights cppn)
         w-uniforms (map #(g/uniform (str "u_weight" %) :float) (range (count ws)))
         w-exprs (zipmap (cppnx/edge-list cppn) w-uniforms)
         program (p/program {:vertex-shader (vertex-shader cppn w-exprs)
@@ -65,7 +64,8 @@
       (println "Fragment shader log:" (.getShaderInfoLog gl fs))
       (println "Vertex shader glsl:")
       (println (-> program :vertex-shader :glsl)))
-    {:gl gl
+    {:domain (:domain cppn)
+     :gl gl
      :gl-program pgm
      :w-uniforms w-uniforms
      :ws ws

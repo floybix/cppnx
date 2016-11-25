@@ -67,7 +67,5 @@
                            (when (satisfies? IDeref v)
                              @v))
                          [:canvas (assoc props
-                                         ;; kind of a hack to force redraw
-                                         :on-click #(draw (:gl @state))
                                          :width width
                                          :height height)])})))
