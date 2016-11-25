@@ -28,6 +28,7 @@
    :seconds-per-move 1.3
    :scrub 0
    :scrub-detail 0
+   :show-mutants? true
    :n-mutants 6})
 
 (defonce ui-state
