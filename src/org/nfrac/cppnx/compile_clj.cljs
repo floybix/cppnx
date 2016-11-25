@@ -25,6 +25,15 @@
           (* 2.0)
           (- 1.0)))})
 
+(def helper-fn-exprs
+  {:abs
+   '(defn abs [x] (if (neg? x) (- x) x))
+   :xy->d
+   '(defn xy->d [x y]
+      (- (* (Math/sqrt (+ (* x x) (* y y)))
+            (/ 2 (Math/sqrt 2.0)))
+         1.0))})
+
 (defn build-cppn-code
   [cppn]
   (let [sym (comp symbol name)
@@ -51,12 +60,18 @@
                          [(sym nid) expr]))
                      sorted-nids)
         out-exprs (into {} (map (fn [nid] [nid (sym nid)])
-                                (sort (:outputs cppn))))]
+                                (sort (:outputs cppn))))
+        in-syms (map sym (sort (disj (:inputs cppn) :d)))
+        assigns (if (contains? (:inputs cppn) :d)
+                  (conj assigns '[d (xy->d x y)])
+                  assigns)]
     (-> (vec (vals fn-exprs))
-        (conj (list 'def 'ws (cppnx/cppn-weights cppn)))
+        (conj (:abs helper-fn-exprs))
+        (conj (:xy->d helper-fn-exprs))
+        (conj (list 'def 'w (cppnx/cppn-weights cppn)))
         (conj
          (list 'defn 'this-cppn
-               (into '[ws] (map sym (sort (:inputs cppn))))
+               (into '[w] in-syms)
                (list 'let
                      (vec (apply concat assigns))
                      out-exprs))))))
