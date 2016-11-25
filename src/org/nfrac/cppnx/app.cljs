@@ -6,7 +6,9 @@
             [org.nfrac.cppnx.webgl-trace :as gl-trace]
             [org.nfrac.cppnx.share :as share]
             [org.nfrac.cppnx.svg :as svg]
+            [org.nfrac.cppnx.compile-clj :refer [build-cppn-code]]
             [fipp.edn]
+            [fipp.clojure]
             [reagent.core :as reagent :refer [atom]]
             [goog.dom :as dom]
             [goog.dom.classes :as classes]
@@ -35,6 +37,10 @@
 
 (defonce ui-state
   (atom init-ui-state))
+
+(defonce glsl-cache
+  (atom {:vertex-glsl ""
+         :fragment-glsl ""}))
 
 (defn generate-mutants
   [cppn ui-state]
@@ -298,7 +304,7 @@
   [app-state ui-state]
   [:div.panel.panel-default
    [:div.panel-heading
-    [:b "Parameter changes"]
+    [:b "Weight changes"]
     [:span.small.text-muted
      " ...oh btw, you can select a node to vary only its incoming edges."]]
    [:div.panel-body
@@ -427,6 +433,26 @@
                             (swap! app-state assoc-in [:cppn :edges sel from-node]
                                    x)))}]])))]])
 
+(defn code-pane
+  [app-state ui-state]
+  [:div
+   [:h4 "EDN"]
+   [:pre
+    (with-out-str
+      (fipp.edn/pprint (:cppn @app-state)))]
+   [:h4 "Clojure"]
+   [:pre
+    (with-out-str
+      (doseq [x (build-cppn-code (:cppn @app-state))]
+        (fipp.clojure/pprint x)))]
+   [:h4 "GLSL"]
+   [:h5 "Vertex shader"]
+   [:pre
+    (:vertex-glsl @glsl-cache)]
+   [:h5 "Fragment shader"]
+   [:pre
+    (:fragment-glsl @glsl-cache)]])
+
 (defn settings-pane
   [app-state ui-state]
   (let [svg-events-c (async/chan)]
@@ -482,9 +508,7 @@
               (if (:show-code? @ui-state) "hide" "show")]]
             (when (:show-code? @ui-state)
               [:div.panel-body
-               [:pre
-                (with-out-str
-                 (fipp.edn/pprint (:cppn @app-state)))]])]]]))))
+               [code-pane app-state ui-state]])]]]))))
 
 (defn mutants-pane
   [mutants-state n-mutants show-mutants? animating?]
@@ -560,6 +584,9 @@
         (fn [gl]
           (when-not (:animating? @ui-state)
             (let [info (gl-setup gl (:cppn @app-state))]
+              (swap! glsl-cache assoc
+                     :vertex-glsl (:vertex-glsl info)
+                     :fragment-glsl (:fragment-glsl info))
               (gl-render info (:ws info)))))]]]
      ;; pass derefd to avoid needless deref triggers
      (let [{:keys [n-mutants show-mutants? animating?]} @ui-state]
