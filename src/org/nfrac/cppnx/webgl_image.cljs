@@ -1,5 +1,6 @@
 (ns org.nfrac.cppnx.webgl-image
   (:require [org.nfrac.cppnx.core :as cppnx :refer [remap]]
+            [org.nfrac.cppnx.compile-webgl :refer [build-cppn-glsl-vals]]
             [org.nfrac.cppnx.util.algo-graph :as graph]
             [org.nfrac.cppnx.webgl-common :refer [hsv2rgb-glsl]]
             [gamma.api :as g]
@@ -35,7 +36,7 @@
                     (/ 2 (Math/sqrt 2.0)))
                1.0)
         in-exprs {:bias 1.0, :x x, :y y, :d d}
-        out-exprs (cppnx/build-cppn-vals cppn in-exprs w-exprs)
+        out-exprs (build-cppn-glsl-vals cppn in-exprs w-exprs)
         ;; for colours, convert [-1 1] to [0 1]
         out-exprs-01 (remap #(g/+ (g/* % 0.5) 0.5) out-exprs)]
     {(g/gl-frag-color) (g/vec4 (hsv2rgb-glsl (:h out-exprs-01)
@@ -71,6 +72,8 @@
     {:domain (:domain cppn)
      :gl gl
      :gl-program pgm
+     :vertex-glsl (-> program :vertex-shader :glsl)
+     :fragment-glsl (-> program :fragment-shader :glsl)
      :w-uniforms w-uniforms
      :ws ws
      :vertex-buffer (.createBuffer gl)}))

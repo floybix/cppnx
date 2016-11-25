@@ -1,5 +1,6 @@
 (ns org.nfrac.cppnx.webgl-lines
   (:require [org.nfrac.cppnx.core :as cppnx :refer [remap]]
+            [org.nfrac.cppnx.compile-webgl :refer [build-cppn-glsl-vals]]
             [org.nfrac.cppnx.util.algo-graph :as graph]
             [org.nfrac.cppnx.webgl-common :refer [hsv2rgb-glsl]]
             [gamma.api :as g]
@@ -27,7 +28,7 @@
 (defn vertex-shader
   [cppn w-exprs]
   (let [in-exprs {:bias 1.0, :z a-z}
-        out-exprs (cppnx/build-cppn-vals cppn in-exprs w-exprs)
+        out-exprs (build-cppn-glsl-vals cppn in-exprs w-exprs)
         xy (g/* (:r out-exprs)
                 (g/vec2 (g/cos (g/* 3.1415 (:a out-exprs)))
                         (g/sin (g/* 3.1415 (:a out-exprs)))))
@@ -75,6 +76,8 @@
     {:domain (:domain cppn)
      :gl gl
      :gl-program pgm
+     :vertex-glsl (-> program :vertex-shader :glsl)
+     :fragment-glsl (-> program :fragment-shader :glsl)
      :w-uniforms w-uniforms
      :ws ws
      :z-buffer (.createBuffer gl)}))

@@ -1,5 +1,6 @@
 (ns org.nfrac.cppnx.webgl-trace
   (:require [org.nfrac.cppnx.core :as cppnx :refer [remap]]
+            [org.nfrac.cppnx.compile-webgl :refer [build-cppn-glsl-vals]]
             [org.nfrac.cppnx.util.algo-graph :as graph]
             [org.nfrac.cppnx.webgl-common :refer [hsv2rgb-glsl]]
             [gamma.api :as g]
@@ -26,7 +27,7 @@
 (defn vertex-shader
   [cppn w-exprs]
   (let [in-exprs {:bias 1.0, :t a-t, :z a-z}
-        out-exprs (cppnx/build-cppn-vals cppn in-exprs w-exprs)
+        out-exprs (build-cppn-glsl-vals cppn in-exprs w-exprs)
         z01 (g/+ (g/* a-z 0.5) 0.5)
         col (g/vec4 (hsv2rgb-glsl z01 0.75 0.8) 1)]
     {(g/gl-position) (g/vec4 a-t
@@ -67,6 +68,8 @@
     {:domain (:domain cppn)
      :gl gl
      :gl-program pgm
+     :vertex-glsl (-> program :vertex-shader :glsl)
+     :fragment-glsl (-> program :fragment-shader :glsl)
      :w-uniforms w-uniforms
      :ws ws
      :vertex-buffer (.createBuffer gl)
