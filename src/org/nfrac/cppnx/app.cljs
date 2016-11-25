@@ -436,6 +436,8 @@
 (defn code-pane
   [app-state ui-state]
   [:div
+   [:p
+    "All values in a CPPN -- inputs, outputs and edges -- range between -1.0 and +1.0."]
    [:h4 "EDN"]
    [:pre
     (with-out-str
@@ -618,7 +620,16 @@
         (fn [e]
           (swap-advance! app-state assoc :cppn (:cppn snap)))}
        [:img
-        {:src (:img-data snap)}]]])])
+        {:src (:img-data snap)}]]])
+   (when (seq (:snapshots @app-state))
+     [:p.small.text-muted
+      {:style {:display "inline-block"
+               :width "52ex"
+               :white-space "normal"
+               :direction "ltr"}}
+      "Click a snapshot to revisit it. "
+      "Snapshots won't survive after leaving this page, but you can "
+      "bookmark this page to keep the current CPPN (only)."])])
 
 (defn navbar
   [app-state ui-state]
@@ -635,16 +646,11 @@
           {:type :button
            :on-click
            (fn [_]
-             (snapshot! app-state ui-state)
-             (swap! ui-state assoc :did-snapshot? true))
+             (snapshot! app-state ui-state))
            :title "Take snapshot"
            :disabled (when freeze? "disabled")}
           [:span.glyphicon.glyphicon-camera {:aria-hidden "true"}]
-          " Snapshot"]]
-        (when (:did-snapshot? @ui-state) ;; draw attention on first click
-          [:li
-           [:p.navbar-text
-            " (click one to load it)"]])]
+          " Snapshot"]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
@@ -678,7 +684,7 @@
     "I hope you are set up for WebGL. "
     "If so you can see a pretty pic made by a CPPN, "
     [:i "Compositional Pattern-Producing Network. "]
-    "It's a novel abstraction of development. Read the "
+    "It's a novel abstraction of biological development. Read the "
     [:a {:href "http://eplex.cs.ucf.edu/publications/2007/stanley-gpem07"} "CPPN paper"]
     " by "
     [:a {:href "http://www.cs.ucf.edu/~kstanley/"} "Ken Stanley"]
