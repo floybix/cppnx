@@ -318,7 +318,7 @@
         [:label "overhaul"]]]]
     [:div.btn-group.btn-group-justified
      [:div.btn-group
-      [:button.btn.btn-primary
+      [:button.btn.btn-default
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/randomise-weights
@@ -329,12 +329,12 @@
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (tour-start! app-state ui-state 1))}
-       "Weight tour (x1)"]]
+       "Weight tour (1 by 1)"]]
      [:div.btn-group
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (tour-start! app-state ui-state 3))}
-       "Weight tour (x3)"]]]]])
+       "Weight tour (in 3s)"]]]]])
 
 (defn topology-controls
   [app-state ui-state]
@@ -586,7 +586,7 @@
       [:a
        {:on-click
         (fn [e]
-          (swap! app-state assoc :cppn (:cppn snap)))}
+          (swap-advance! app-state assoc :cppn (:cppn snap)))}
        [:img
         {:src (:img-data snap)}]]])])
 
