@@ -157,28 +157,34 @@
         (update-in [:edges to1] dissoc from1)
         (update-in [:edges to1] assoc id 1.0))))
 
-(defn mutate-add-conn
-  [cppn]
-  (let [[to-node to-edges] (rand-nth (seq (:edges cppn)))
+(defn mutate-add-conn-to
+  [cppn to-node]
+  (let [to-edges (get (:edges cppn) to-node)
         candidates (remove (into (set (keys to-edges))
                                  (downstream cppn to-node))
-                           (concat (keys (:nodes cppn)) (:inputs cppn)))]
+                           (concat (keys (:nodes cppn)) (:inputs cppn)))
+        w (- (rand (* 3.0 2)) 3.0)]
     (if (seq candidates)
       (-> cppn
-          (assoc-in [:edges to-node (rand-nth (seq candidates))] 1.0))
+          (assoc-in [:edges to-node (rand-nth (seq candidates))] w))
       cppn)))
+
+(defn mutate-add-conn
+  [cppn]
+  (mutate-add-conn-to cppn (rand-nth (keys (:edges cppn)))))
 
 (defn mutate-rewire-conn
   [cppn]
   (let [[to-node to-edges] (rand-nth (seq (:edges cppn)))
-        [rm-from w] (rand-nth (seq to-edges))
-        candidates (remove (into (set (keys to-edges))
-                                 (downstream cppn to-node))
-                           (concat (keys (:nodes cppn)) (:inputs cppn)))]
-    (if (seq candidates)
-      (-> cppn
+        [rm-from old-w] (rand-nth (seq to-edges))
+        cppn2 (mutate-add-conn-to cppn to-node)
+        new-from (-> (apply dissoc (get-in cppn2 [:edges to-node])
+                            (keys to-edges))
+                     keys first)]
+    (if new-from
+      (-> cppn2
           (update-in [:edges to-node] dissoc rm-from)
-          (assoc-in [:edges to-node (rand-nth (seq candidates))] w))
+          (assoc-in [:edges to-node new-from] old-w))
       cppn)))
 
 (defn delete-node
@@ -210,12 +216,12 @@
 
 (defn remove-edge
   [cppn from to]
-  (update-in cppn [:edges from]
+  (update-in cppn [:edges to]
              (fn [m]
-               (let [m (dissoc m to)]
+               (let [m (dissoc m from)]
                  ;; ensure all nodes have at least one input
                  (if (empty? m)
-                   (assoc m (rand-nth (seq (:outputs cppn))) 1.0)
+                   (assoc m (rand-nth (seq (:inputs cppn))) 1.0)
                    m)))))
 
 (defn rand-skew

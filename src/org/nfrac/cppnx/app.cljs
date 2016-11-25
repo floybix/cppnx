@@ -449,10 +449,10 @@
                   :link
                   (fn [s]
                     (cond
-                      (get-in s [:cppn :edges from to])
-                      (update s :cppn cppnx/remove-edge from to)
-                      (get-in s [:cppn :edges to from])
+                      (get-in s [:cppn :edges from to]) ;; reversed
                       (update s :cppn cppnx/remove-edge to from)
+                      (get-in s [:cppn :edges to from])
+                      (update s :cppn cppnx/remove-edge from to)
                       :else
                       (update s :cppn cppnx/link-nodes from to))))]
            (swap-advance! app-state f))
