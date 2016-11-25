@@ -638,11 +638,30 @@
          [:p.navbar-text
           " use browser back/forward as undo/redo!"]]]]]]))
 
+(defn intro-pane
+  []
+  [:div
+   [:p
+    "Hi! This place is like "
+    [:a {:href "http://picbreeder.org/"} "picbreeder.org"]
+    " but with less Java and more animation (and a lot less history). "
+    "I hope you are set up for WebGL. "
+    "If so you can see a pretty pic made by a CPPN, "
+    [:i "Compositional Pattern-Producing Network. "]
+    "It's a novel abstraction of development. Read the "
+    [:a {:href "http://eplex.cs.ucf.edu/publications/2007/stanley-gpem07"} "CPPN paper"]
+    " by "
+    [:a {:href "http://www.cs.ucf.edu/~kstanley/"} "Ken Stanley"]
+    " but don't forget to try a Weight Tour while you're here."]])
+
 (defn app-pane
   [app-state ui-state]
   [:div
    [navbar app-state ui-state]
    [:div.container-fluid
+    [:div.row
+     [:div.col-lg-12
+      [intro-pane]]]
     [:div.row
      [:div.col-lg-12
       [snapshots-pane app-state ui-state]]]
