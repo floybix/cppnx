@@ -19,8 +19,10 @@
 
 (defonce app-state
   (atom {:cppn gl-img/start-cppn
-         :mutants []
          :snapshots ()}))
+
+(defonce mutants-state
+  (atom {:mutants []}))
 
 (def init-ui-state
   {:selection nil
@@ -51,7 +53,7 @@
 (defn on-new-cppn!
   []
   (let [cppn (:cppn @app-state)]
-    (swap! app-state assoc :mutants (generate-mutants cppn ui-state))))
+    (swap! mutants-state assoc :mutants (generate-mutants cppn ui-state))))
 
 (defn swap-advance!
   "ref = app-state"
@@ -485,8 +487,8 @@
                  (fipp.edn/pprint (:cppn @app-state)))]])]]]))))
 
 (defn mutants-pane
-  [app-state n-mutants show-mutants? animating?]
-  (let [mutants (:mutants @app-state)]
+  [mutants-state n-mutants show-mutants? animating?]
+  (let [mutants (:mutants @mutants-state)]
     [:div
      [:div.row
       [:div.col-lg-12
@@ -507,7 +509,7 @@
             {:style {:margin-left "2em"}
              :on-click (fn [e]
                          (let [cppn (:cppn @app-state)]
-                           (swap! app-state assoc :mutants
+                           (swap! mutants-state assoc :mutants
                                   (generate-mutants cppn ui-state))))}
             "Meh..."]])]]]
      (when (and show-mutants? (not animating?))
@@ -524,7 +526,7 @@
               :on-click (fn [e]
                           (swap-advance! app-state assoc :cppn cppn))}
              100 100
-             [app-state]
+             [mutants-state]
              (fn [gl]
                  (let [info (gl-setup gl cppn)]
                    (gl-render info (:ws info))))]])]])]))
@@ -561,7 +563,7 @@
               (gl-render info (:ws info)))))]]]
      ;; pass derefd to avoid needless deref triggers
      (let [{:keys [n-mutants show-mutants? animating?]} @ui-state]
-       [mutants-pane app-state n-mutants show-mutants? animating?])]))
+       [mutants-pane mutants-state n-mutants show-mutants? animating?])]))
 
 (defn snapshots-pane
   [app-state ui-state]
