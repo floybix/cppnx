@@ -1,69 +1,73 @@
 (ns org.nfrac.cppnx.compile-webgl
   (:require [org.nfrac.cppnx.core :as cppnx]
-            [gamma.api :as g]))
+            [clojure.string :as str]))
 
-(defmulti node-glsl
-  (fn [type sum weight]
-    type))
+(def hsv2rgb-glsl
+  "
+vec3 hsv2rgb(vec3 c)
+{
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}")
 
-(defmethod node-glsl :linear
-  [_ sum weight]
-  (g/div sum weight))
+(def xytod-glsl
+  "
+float xytod(float x, float y) {
+  float z = sqrt((x * x) + (y * y)) * (1.0 / sqrt(2.0));
+  return (z * 2.0) - 1.0;
+}
+")
 
-(defmethod node-glsl :sine
-  [_ sum _]
-  (g/sin (g/* sum (* 3.1415 2))))
+(def node-fns-glsl
+  "
+float sine(float x) {
+  return sin(x * (3.1415 * 2.0));
+}
+float gaussian(float x) {
+  float z = exp(- pow(x * 2.5, 2.0));
+  return (z * 2.0) - 1.0;
+}
+float sigmoid(float x) {
+  float z = 1.0 / (1.0 + exp(x * -4.9));
+  return (z * 2.0) - 1.0;
+}
+float sawtooth(float x) {
+  float z = fract(x);
+  return (z * 2.0) - 1.0;
+}
+")
 
-(defmethod node-glsl :gaussian
-  [_ sum _]
-  (-> (g/* sum 2.5)
-      (g/pow 2.0)
-      (g/* -1.0)
-      (g/exp)
-      (g/* 2.0)
-      (g/- 1.0)))
-
-(defmethod node-glsl :sigmoid
-  [_ sum _]
-  (->
-   (g/div
-    1.0
-    (-> (g/* sum -4.9)
-        (g/exp)
-        (g/+ 1.0)))
-   (g/* 2.0)
-   (g/- 1.0)))
-
-(defmethod node-glsl :sawtooth
-  [_ sum _]
-  (let [a (g/fract sum)
-        ;; could use just 'fract' but let's do a little smoothing
-        peak 0.975
-        truncd (g/min a peak)
-        over (g/- a truncd)]
-    (-> (g/- truncd (g/* over (/ peak (- 1.0 peak))))
-        (g/* 2.0)
-        (g/- 1.0))))
-
-(defn build-cppn-glsl-vals
-  [cppn in-exprs w-exprs]
+(defn cppn-glsl-assigns
+  "Returns a list of local assignments as [name expr] string pairs to be
+  included in a glsl function. Assumes all :input syms are defined.
+  Weights: w-exprs should be a map from edge [to from] to glsl string."
+  [cppn w-exprs]
   (let [strata (cppnx/cppn-strata cppn)
-        sorted-nids (apply concat (rest strata))
-        node-exprs (reduce (fn [m nid]
-                             (let [node-type (get-in cppn [:nodes nid] :linear)
-                                   deps (keys (get-in cppn [:edges nid]))
-                                   sum (->> deps
-                                            (map (fn [k]
-                                                   (let [w (get w-exprs [nid k])]
-                                                     (g/* w (get m k)))))
-                                            (reduce g/+))
-                                   sumw (->> deps
-                                             (map (fn [k]
-                                                    (g/abs (get w-exprs [nid k]))))
-                                             (reduce g/+))
-                                   expr (node-glsl node-type sum sumw)]
-                                (assoc m nid expr)))
-                           in-exprs
-                           ;; topological sort
-                           sorted-nids)]
-    node-exprs))
+        sorted-nids (apply concat (rest strata))]
+    (->>
+     sorted-nids
+     (map (fn [nid]
+           (let [node-type (get-in cppn [:nodes nid] :linear)
+                 deps (keys (get-in cppn [:edges nid]))
+                 sum (->> deps
+                          (map (fn [k]
+                                 (let [w (get w-exprs [nid k])]
+                                   (str "(" w " * " (name k) ")"))))
+                          (str/join " + "))
+                 sumw (->> deps
+                           (map (fn [k]
+                                  (let [w (get w-exprs [nid k])]
+                                    (str "abs(" w ")"))))
+                           (str/join " + "))
+                 expr (if (= node-type :linear)
+                        (str "(" sum ") / (" sumw ")")
+                        (str (name node-type) "(" sum ")"))]
+             [(name nid) expr]))))))
+
+(defn assigns->glsl
+  [assigns]
+  (->> assigns
+       (map (fn [[id expr]]
+              (str "float " id " = " expr ";")))
+       (str/join \newline)))

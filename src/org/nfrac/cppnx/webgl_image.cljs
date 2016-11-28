@@ -1,11 +1,6 @@
 (ns org.nfrac.cppnx.webgl-image
-  (:require [org.nfrac.cppnx.core :as cppnx :refer [remap]]
-            [org.nfrac.cppnx.compile-webgl :refer [build-cppn-glsl-vals]]
-            [org.nfrac.cppnx.util.algo-graph :as graph]
-            [org.nfrac.cppnx.webgl-common :refer [hsv2rgb-glsl]]
-            [gamma.api :as g]
-            [gamma.program :as p]
-            [goog.dom :as gdom]
+  (:require [org.nfrac.cppnx.core :as cppnx]
+            [org.nfrac.cppnx.compile-webgl :as glsl]
             [goog.webgl :as ggl]))
 
 (def start-cppn
@@ -20,45 +15,60 @@
                :x -1.0}
            :v {:init 1.0}}})
 
-(def a-position (g/attribute "a_VertexPosition" :vec2))
-
-(def v-position (g/varying "v_position" :vec2 :highp))
-
 (def vertex-shader
-  {(g/gl-position) (g/vec4 a-position 0 1)
-   v-position a-position})
+  "precision highp float;
+attribute vec2 a_position;
+varying highp vec2 v_position;
+void main(void){
+  gl_Position = vec4(a_position, 0.0, 1.0);
+  v_position = a_position;
+}
+")
 
-(defn xy-to-hsv-shader
-  [cppn w-exprs]
-  (let [x (g/swizzle v-position :x)
-        y (g/swizzle v-position :y)
-        d (g/- (g/* (g/sqrt (g/+ (g/* x x) (g/* y y)))
-                    (/ 2 (Math/sqrt 2.0)))
-               1.0)
-        in-exprs {:bias 1.0, :x x, :y y, :d d}
-        out-exprs (build-cppn-glsl-vals cppn in-exprs w-exprs)
-        ;; for colours, convert [-1 1] to [0 1]
-        out-exprs-01 (remap #(g/+ (g/* % 0.5) 0.5) out-exprs)]
-    {(g/gl-frag-color) (g/vec4 (hsv2rgb-glsl (:h out-exprs-01)
-                                             (:s out-exprs-01)
-                                             (:v out-exprs-01)) 1)}))
+(defn- to-0-1 [expr]
+  (str "(" expr " * 0.5 + 0.5)"))
+
+(defn fragment-shader
+  [cppn]
+  (let [n-weights (count (cppnx/cppn-weights cppn))
+        w-exprs (zipmap (cppnx/edge-list cppn)
+                        (map #(str "u_w[" % "]") (range n-weights)))
+        in-assigns [["x" "v_position.x"]
+                    ["y" "v_position.y"]
+                    ["d" "xytod(x,y)"]
+                    ["bias" "1.0"]]
+        cppn-assigns (glsl/cppn-glsl-assigns cppn w-exprs)
+        outpart (str "gl_FragColor = vec4(hsv2rgb(vec3(" \newline
+                     "  " (to-0-1 "h") "," \newline
+                     "  " (to-0-1 "s") "," \newline
+                     "  " (to-0-1 "v") ")),1.0);")]
+    (str "precision highp float;
+varying highp vec2 v_position;
+uniform float u_w[" n-weights "];"
+         \newline
+         glsl/hsv2rgb-glsl
+         glsl/node-fns-glsl
+         glsl/xytod-glsl
+         \newline
+         "void main(void){" \newline
+         (glsl/assigns->glsl (concat in-assigns cppn-assigns))
+         \newline
+         outpart
+         "}")))
 
 (defn setup
   [gl cppn]
-  (let [ws (cppnx/cppn-weights cppn)
-        w-uniforms (map #(g/uniform (str "u_weight" %) :float) (range (count ws)))
-        w-exprs (zipmap (cppnx/edge-list cppn) w-uniforms)
-        program (p/program {:vertex-shader vertex-shader
-                            :fragment-shader (xy-to-hsv-shader cppn w-exprs)
-                            :precision {:float :highp}})
+  (let [n-weights (count (cppnx/cppn-weights cppn))
+        vs-glsl vertex-shader
+        fs-glsl (fragment-shader cppn)
         vs  (.createShader gl ggl/VERTEX_SHADER)
         fs  (.createShader gl ggl/FRAGMENT_SHADER)
         pgm (.createProgram gl)]
     (doto gl
       (.clearColor 0 0 0 1)
-      (.shaderSource vs (-> program :vertex-shader :glsl))
+      (.shaderSource vs vs-glsl)
       (.compileShader vs)
-      (.shaderSource fs (-> program :fragment-shader :glsl))
+      (.shaderSource fs fs-glsl)
       (.compileShader fs)
       (.attachShader pgm vs)
       (.attachShader pgm fs)
@@ -68,21 +78,19 @@
       (println "Vertex shader log:" (.getShaderInfoLog gl vs))
       (println "Fragment shader log:" (.getShaderInfoLog gl fs))
       (println "Fragment shader glsl:")
-      (println (-> program :fragment-shader :glsl)))
+      (println fs-glsl))
     {:domain (:domain cppn)
      :gl gl
      :gl-program pgm
-     :vertex-glsl (-> program :vertex-shader :glsl)
-     :fragment-glsl (-> program :fragment-shader :glsl)
-     :w-uniforms w-uniforms
-     :ws ws
+     :vertex-glsl vs-glsl
+     :fragment-glsl fs-glsl
+     :n-weights n-weights
      :vertex-buffer (.createBuffer gl)}))
 
 (defn load-weights
   [gl info w-vals]
-  (doseq [[unif w-val] (map vector (:w-uniforms info) w-vals)]
-    (when-let [loc (.getUniformLocation gl (:gl-program info) (:name unif))]
-      (.uniform1f gl loc w-val)))
+  (when-let [loc (.getUniformLocation gl (:gl-program info) "u_w")]
+    (.uniform1fv gl loc (js/Float32Array. (clj->js w-vals))))
   gl)
 
 (def vx-data
@@ -97,8 +105,8 @@
       (.clear (.-COLOR_BUFFER_BIT gl))
       (.bindBuffer ggl/ARRAY_BUFFER buf)
       (.bufferData ggl/ARRAY_BUFFER vx-data ggl/STATIC_DRAW)
-      (.enableVertexAttribArray (.getAttribLocation gl pgm (:name a-position)))
-      (.vertexAttribPointer (.getAttribLocation gl pgm (:name a-position))
+      (.enableVertexAttribArray (.getAttribLocation gl pgm "a_position"))
+      (.vertexAttribPointer (.getAttribLocation gl pgm "a_position")
         2 ggl/FLOAT false 0 0)
       (.useProgram pgm)
       (load-weights gl-info w-vals)

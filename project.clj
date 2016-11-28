@@ -10,7 +10,6 @@
                  [org.clojure/clojurescript "1.9.293"]
                  [org.clojure/core.async "0.2.395"
                   :exclusions [org.clojure/tools.reader]]
-                 [kovasb/gamma "0.0-135-21-g3c9e**DIRTY**" #_"0.1.1" :exclusions [[fipp]]]
                  [fipp "0.6.7" :exclusions [org.clojure/core.rrb-vector]]
                  [quantum/org.clojure.core.rrb-vector "0.0.12"]
                  [cljsjs/oauthio "0.4.0-0"]

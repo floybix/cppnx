@@ -13,7 +13,6 @@
             [goog.dom :as dom]
             [goog.dom.classes :as classes]
             [goog.dom.forms :as forms]
-            [goog.webgl :as ggl]
             [clojure.core.async :as async :refer [<! put!]])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
@@ -123,13 +122,14 @@
   (let [el (dom/getElementByClass gl-snap-canvas-class)
         _ (classes/swap el "hidden" "show")
         gl (.getContext el "webgl")
-        info (gl-setup gl (:cppn @app-state))]
-    (gl-render info (:ws info))
+        cppn (:cppn @app-state)
+        info (gl-setup gl cppn)]
+    (gl-render info (cppnx/cppn-weights cppn))
     (when-not (contains? (set (map :cppn (:snapshots @app-state)))
-                         (:cppn @app-state))
+                         cppn)
       (swap! app-state update :snapshots conj
         {:img-data (.toDataURL el)
-         :cppn (:cppn @app-state)}))
+         :cppn cppn}))
     (classes/swap el "show" "hidden")))
 
 (defn animate [state step-fn draw-fn]
@@ -555,7 +555,7 @@
              [mutants-state]
              (fn [gl]
                  (let [info (gl-setup gl cppn)]
-                   (gl-render info (:ws info))))]])]])]))
+                   (gl-render info (cppnx/cppn-weights cppn))))]])]])]))
 
 (def backdrop-style
   {:position         "fixed"
@@ -585,11 +585,12 @@
         [app-state]
         (fn [gl]
           (when-not (:animating? @ui-state)
-            (let [info (gl-setup gl (:cppn @app-state))]
+            (let [cppn (:cppn @app-state)
+                  info (gl-setup gl cppn)]
               (swap! glsl-cache assoc
                      :vertex-glsl (:vertex-glsl info)
                      :fragment-glsl (:fragment-glsl info))
-              (gl-render info (:ws info)))))]]]
+              (gl-render info (cppnx/cppn-weights cppn)))))]]]
      ;; pass derefd to avoid needless deref triggers
      (let [{:keys [n-mutants show-mutants? animating?]} @ui-state]
        [mutants-pane mutants-state n-mutants show-mutants? animating?])]))
