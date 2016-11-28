@@ -576,12 +576,12 @@
    :opacity          0.8})
 
 (defn view-pane
-  [app-state ui-state]
+  [app-state {:keys [n-mutants show-mutants? animating?]}]
   (let []
     [:div
      [:div.backdrop
       {:style (cond-> backdrop-style
-                (not (:animating? @ui-state))
+                (not animating?)
                 (assoc :display "none"))}]
      [:div.row
       [:div.col-lg-12
@@ -593,7 +593,7 @@
         600 600
         [app-state]
         (fn [gl]
-          (when-not (:animating? @ui-state)
+          (when-not animating?
             (let [cppn (:cppn @app-state)
                   info (gl-setup gl cppn)]
               (swap! glsl-cache assoc
@@ -601,8 +601,7 @@
                      :fragment-glsl (:fragment-glsl info))
               (gl-render info (cppnx/cppn-weights cppn)))))]]]
      ;; pass derefd to avoid needless deref triggers
-     (let [{:keys [n-mutants show-mutants? animating?]} @ui-state]
-       [mutants-pane mutants-state n-mutants show-mutants? animating?])]))
+     [mutants-pane mutants-state n-mutants show-mutants? animating?]]))
 
 (defn snapshots-pane
   [app-state ui-state]
@@ -713,7 +712,8 @@
       [snapshots-pane app-state ui-state]]]
     [:div.row
      [:div.col-lg-6.col-md-8
-      [view-pane app-state ui-state]]
+      [view-pane app-state
+       (select-keys @ui-state [:n-mutants :show-mutants? :animating?])]]
      [:div.col-lg-6.col-md-4
       [settings-pane app-state ui-state]]]]])
 
