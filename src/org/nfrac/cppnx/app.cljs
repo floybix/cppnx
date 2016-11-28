@@ -32,7 +32,7 @@
    :scrub 0
    :scrub-detail 0
    :show-mutants? true
-   :n-mutants 6})
+   :n-mutants 12})
 
 (defonce ui-state
   (atom init-ui-state))
@@ -44,15 +44,18 @@
 (defn generate-mutants
   [cppn ui-state]
   (let [perturbation (:perturbation @ui-state)
-        ms (for [i (range (:n-mutants @ui-state))]
-             (-> (cond
-                   (< (rand) 0.33)
-                   (cppnx/mutate-append-node cppn)
-                   (< (rand) 0.5)
-                   (cppnx/mutate-add-conn cppn)
-                   :else
-                   (cppnx/mutate-rewire-conn cppn))
-                 (cppnx/randomise-weights perturbation nil)))]
+        n-mut (:n-mutants @ui-state)
+        ms (for [i (range n-mut)]
+             (let [c (if (>= i (quot n-mut 2)) ;; second half
+                       (cond
+                         (< (rand) 0.33)
+                         (cppnx/mutate-append-node cppn)
+                         (< (rand) 0.5)
+                         (cppnx/mutate-add-conn cppn)
+                         :else
+                         (cppnx/mutate-rewire-conn cppn))
+                       cppn)]
+               (cppnx/randomise-weights c perturbation nil)))]
     (vec ms)))
 
 (defn on-new-cppn!
@@ -300,6 +303,24 @@
              (swap! ui-state update :seconds-per-move #(* % 1.5)))}
           "Slower."]]]]]])
 
+(defn perturbation-slider
+  [ui-state]
+  [:div
+   {:style {:padding-left "1em"}}
+   [:label "tweak"]
+   [:input
+    {:style {:display "inline-block"
+             :margin "1ex"
+             :width "70%"}
+     :type "range"
+     :min 1
+     :max 100
+     :value (int (* 100 (:perturbation @ui-state)))
+     :on-change (fn [e]
+                  (let [x (-> e .-target forms/getValue)]
+                    (swap! ui-state assoc :perturbation (/ x 100))))}]
+   [:label "overhaul"]])
+
 (defn weights-controls
   [app-state ui-state]
   [:div.panel.panel-default
@@ -310,21 +331,7 @@
    [:div.panel-body
     [:div.row
      [:div.col-lg-12
-      [:div
-        {:style {:padding-left "1em"}}
-        [:label "tweak"]
-        [:input
-         {:style {:display "inline-block"
-                  :margin "1ex"
-                  :width "70%"}
-          :type "range"
-          :min 1
-          :max 100
-          :value (int (* 100 (:perturbation @ui-state)))
-          :on-change (fn [e]
-                       (let [x (-> e .-target forms/getValue)]
-                         (swap! ui-state assoc :perturbation (/ x 100))))}]
-        [:label "overhaul"]]]]
+      [perturbation-slider ui-state]]]
     [:div.btn-group.btn-group-justified
      [:div.btn-group
       [:button.btn.btn-default
@@ -518,26 +525,28 @@
     [:div
      [:div.row
       [:div.col-lg-12
-       [:div.checkbox
+       [:div
         [:label
-         [:input
-          {:type :checkbox
-           :checked (when show-mutants? true)
-           :on-change
-           (fn [e]
-             (let [x (-> e .-target forms/getValue)]
-               (swap! ui-state update :show-mutants? #(not %))))}]
-         " Show some mutants (random structure & weight changes) "]
+         "Random mutations of weights & structure. "]
         (when show-mutants?
           [:span
-           [:span.small.text-muted " ...pick one!"]
-           [:button.btn.btn-default.btn-xs
+           [:span.small.text-muted " ...pick a mutant!"]
+           [:button.btn.btn-default.btn-sm
             {:style {:margin-left "2em"}
              :on-click (fn [e]
                          (let [cppn (:cppn @app-state)]
                            (swap! mutants-state assoc :mutants
                                   (generate-mutants cppn ui-state))))}
-            "Meh..."]])]]]
+            "Regenerate"]])
+        [:button.btn.btn-default.btn-sm
+         {:style {:margin-left "2em"}
+          :on-click (fn [e]
+                      (swap! ui-state update :show-mutants? #(not %)))}
+         (if show-mutants? "hide" "show")]]]]
+     (when show-mutants?
+       [:div.row
+        [:div.col-lg-12
+         [perturbation-slider ui-state]]])
      (when (and show-mutants? (not animating?))
        [:div.row
         [:div.col-lg-12
