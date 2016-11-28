@@ -4,8 +4,7 @@
             [goog.webgl :as ggl]))
 
 (def start-cppn
-  {:domain :image
-   :inputs #{:bias :x :y :d}
+  {:inputs #{:bias :x :y :d}
    :outputs #{:h :s :v}
    :nodes {:init :gaussian}
    :edges {:init {:d 1.0

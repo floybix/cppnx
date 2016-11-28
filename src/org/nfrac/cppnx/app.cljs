@@ -73,7 +73,7 @@
 
 (defn init-cppn
   [domain]
-  (case domain
+  (case (or domain :image)
     :image gl-img/start-cppn
     :lines gl-lines/start-cppn
     :trace gl-trace/start-cppn))
@@ -101,14 +101,14 @@
 
 (defn gl-setup
   [gl cppn]
-  (case (:domain cppn)
+  (case (or (:domain cppn) :image)
     :image (gl-img/setup gl cppn)
     :lines (gl-lines/setup gl cppn)
     :trace (gl-trace/setup gl cppn)))
 
 (defn gl-render
   [info ws]
-  (case (:domain info)
+  (case (or (:domain info) :image)
     :image (gl-img/render info ws)
     :lines (gl-lines/render info ws)
     :trace (gl-trace/render info ws)))
@@ -658,7 +658,7 @@
           [:label
            "Domain: "]
           [:select.form-control
-           {:value (name (:domain (:cppn @app-state)))
+           {:value (name (or (:domain (:cppn @app-state)) :image))
             :on-change (fn [e]
                          (let [s (-> e .-target forms/getValue)
                                domain (keyword s)]
