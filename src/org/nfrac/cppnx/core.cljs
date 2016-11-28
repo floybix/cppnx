@@ -271,3 +271,13 @@
         (-> tour
             (assoc :weights ws)
             (assoc :motion-frac t))))))
+
+(defn round-to [x places]
+  (let [factor (Math/pow 10 places)]
+    (-> (Math/round (* x factor))
+        (/ factor))))
+
+(defn trunc-precision
+  [cppn places]
+  (set-cppn-weights cppn (->> (cppn-weights cppn)
+                              (map #(round-to % places)))))

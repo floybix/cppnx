@@ -61,9 +61,9 @@
     (swap! mutants-state assoc :mutants (generate-mutants cppn ui-state))))
 
 (defn swap-advance!
-  "ref = app-state"
-  [ref f & more]
-  (let [x (apply swap! ref f more)
+  [app-state f & more]
+  (let [x (swap! app-state #(-> (apply f % more)
+                                (update :cppn cppnx/trunc-precision 7)))
         uri (share/uri-with-cppn (dissoc (:cppn x) :inputs :outputs))]
     (.pushState js/history (hash x) "cppnx" uri)
     (on-new-cppn!)
