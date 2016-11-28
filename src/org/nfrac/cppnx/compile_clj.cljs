@@ -2,37 +2,34 @@
   (:require [org.nfrac.cppnx.core :as cppnx]))
 
 (def fn-exprs
-  {:sine
-   '(defn sine [x]
-      (Math/sin (* x 3.1415 2)))
-   :gaussian
-   '(defn gaussian [x]
-      (-> (* x 2.5)
-          (Math/pow 2.0)
-          (* -1.0)
-          (Math/exp)
-          (* 2.0)
-          (- 1.0)))
-   :sigmoid
-   '(defn sigmoid [x]
-      (-> (/ 1.0
-             (-> (* x -4.9) (Math/exp) (+ 1.0)))
-          (* 2.0)
-          (- 1.0)))
-   :sawtooth
-   '(defn sawtooth [x]
-      (-> (- x (int x))
-          (* 2.0)
-          (- 1.0)))})
+ '[
+   (defn sine [x]
+     (Math/sin (* x 3.1415 2)))
 
-(def helper-fn-exprs
-  {:abs
-   '(defn abs [x] (if (neg? x) (- x) x))
-   :xy->d
-   '(defn xy->d [x y]
-      (- (* (Math/sqrt (+ (* x x) (* y y)))
-            (/ 2 (Math/sqrt 2.0)))
-         1.0))})
+   (defn gaussian [x]
+     (-> (* x 2.5)
+         (Math/pow 2.0)
+         (* -1.0)
+         (Math/exp)
+         (* 2.0)
+         (- 1.0)))
+   (defn sigmoid [x]
+     (-> (/ 1.0
+            (-> (* x -4.9) (Math/exp) (+ 1.0)))
+         (* 2.0)
+         (- 1.0)))
+
+   (defn sawtooth [x]
+     (-> (- x (int x))
+         (* 2.0)
+         (- 1.0)))
+
+   (defn abs [x] (if (neg? x) (- x) x))
+
+   (defn xy->d [x y]
+     (- (* (Math/sqrt (+ (* x x) (* y y)))
+           (/ 2 (Math/sqrt 2.0)))
+        1.0))])
 
 (defn build-cppn-code
   [cppn]
@@ -65,9 +62,7 @@
         assigns (if (contains? (:inputs cppn) :d)
                   (conj assigns '[d (xy->d x y)])
                   assigns)]
-    (-> (vec (vals fn-exprs))
-        (conj (:abs helper-fn-exprs))
-        (conj (:xy->d helper-fn-exprs))
+    (-> fn-exprs
         (conj (list 'def 'w (cppnx/cppn-weights cppn)))
         (conj
          (list 'defn 'this-cppn
