@@ -7,13 +7,13 @@
   {:domain :lines
    :inputs #{:bias :z}
    :outputs #{:r :a :h :s}
-   :nodes {:init :gaussian}
-   :edges {:init {:z 1.0
-                  :bias 1.0}
-           :r {:init 1.0}
-           :a {:init 1.0}
-           :h {:init 1.0}
-           :s {:init 1.0}}})
+   :nodes {:i0 :gaussian}
+   :edges {:i0 {:z 1.0
+                :bias 1.0}
+           :r {:i0 1.0}
+           :a {:i0 1.0}
+           :h {:i0 1.0}
+           :s {:i0 1.0}}})
 
 (defn- to-0-1 [expr]
   (str "(" expr " * 0.5 + 0.5)"))

@@ -7,11 +7,11 @@
   {:domain :trace
    :inputs #{:bias :t :z}
    :outputs #{:y}
-   :nodes {:init :gaussian}
-   :edges {:init {:z 1.0
-                  :t 1.0
-                  :bias 1.0}
-           :y {:init 1.0}}})
+   :nodes {:i0 :gaussian}
+   :edges {:i0 {:z 1.0
+                :t 1.0
+                :bias 1.0}
+           :y {:i0 1.0}}})
 
 (defn- to-0-1 [expr]
   (str "(" expr " * 0.5 + 0.5)"))
