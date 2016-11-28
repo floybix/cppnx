@@ -7,9 +7,6 @@
             [goog.Uri]
             [goog.Uri.QueryData]))
 
-(comment
- js/OAuth)
-
 (def node-type-encode
   {:linear :l
    :gaussian :g
@@ -56,6 +53,46 @@
   [cppn]
   (let [uri (goog.Uri. (.-location js/window))
         qd (goog.Uri.QueryData/createFromMap
-            (clj->js {"cppn" (cppn->uristr cppn)}))]
+            #js {:cppn (cppn->uristr cppn)})]
     (.setQueryData uri qd)
     (str uri)))
+
+(defonce init-oauth
+  (.initialize js/OAuth "tX7bPIbYnjeE5Y2ZrdToloUbE"))
+
+(defn data-uri->blob
+  [data-uri]
+  (let [[intro blah] (str/split data-uri #"," 2)
+        bytestr (if (re-matches #"base64" intro)
+                  (.atob js/window blah)
+                  (.decodeURI blah))
+        [mime _] (str/split intro #";" 2)
+        ia (js/Uint8Array. (.-length bytestr))]
+    (doseq [i (range (.-length bytestr))]
+      (aset ia i (.charCodeAt bytestr i)))
+    (js/Blob. (array ia) #js {:type mime})))
+
+(def post-tweet-url
+  "/1.1/statuses/update.json")
+
+(defn tweet!
+  [cppn]
+  (let [params #js {} #_{:cache true}]
+    (-> (.popup js/OAuth "twitter" params)
+        (.done
+         (fn [twitter]
+           (let [tweet #js {:status (str "Hello world."
+                                         (uri-with-cppn cppn))}]
+             ;; media_ids
+             (-> twitter
+                 (.post post-tweet-url
+                        #js {:data tweet})
+                 (.done
+                  (fn [data]
+                    (println "tweeted!" (js->clj data))))
+                 (.fail
+                  (fn [err]
+                    (println "tweet failed:" (js->clj err))))))))
+        (.fail
+         (fn [err]
+           (println "oauth failed:" (js->clj err)))))))

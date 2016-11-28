@@ -659,7 +659,16 @@
            :title "Take snapshot"
            :disabled (when freeze? "disabled")}
           [:span.glyphicon.glyphicon-camera {:aria-hidden "true"}]
-          " Snapshot"]]]
+          " Snapshot"]]
+        [:li
+         [:button.btn.btn-primary.navbar-btn
+          {:type :button
+           :on-click
+           (fn [_]
+             (share/tweet! (:cppn @app-state)))
+           :title "Share on Twitter"
+           :disabled (when freeze? "disabled")}
+          "Share on Twitter"]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
