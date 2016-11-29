@@ -67,7 +67,7 @@
   [app-state f & more]
   (let [x (swap! app-state #(-> (apply f % more)
                                 (update :cppn cppnx/trunc-precision 7)))
-        uri (share/uri-with-cppn (dissoc (:cppn x) :inputs :outputs))]
+        uri (share/uri-with-cppn (:cppn x))]
     (.pushState js/history (hash x) "cppnx" uri)
     (on-new-cppn!)
     x))
@@ -665,10 +665,12 @@
           {:type :button
            :on-click
            (fn [_]
-             (share/tweet! (:cppn @app-state)))
-           :title "Share on Twitter"
+             (share/tweet! (:cppn @app-state)
+                           (:reply-info @app-state)
+                           #(swap! app-state assoc :reply-info %)))
+           :title "Publish on Twitter"
            :disabled (when freeze? "disabled")}
-          "Share on Twitter"]]]
+          "Publish on Twitter"]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group

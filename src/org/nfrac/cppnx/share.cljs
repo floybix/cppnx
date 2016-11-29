@@ -50,15 +50,16 @@
       (uristr->cppn tc))))
 
 (defn uri-with-cppn
-  [cppn]
-  (let [uri (goog.Uri. (.-location js/window))
+  [cppn*]
+  (let [cppn (dissoc cppn* :input :outputs) ;; inferred from :domain
+        uri (goog.Uri. (.-location js/window))
         qd (goog.Uri.QueryData/createFromMap
             #js {:cppn (cppn->uristr cppn)})]
     (.setQueryData uri qd)
     (str uri)))
 
 (defonce init-oauth
-  (.initialize js/OAuth "tX7bPIbYnjeE5Y2ZrdToloUbE"))
+  (.initialize js/OAuth "G8cnIzClY3nbnOniOAQzkHvMcfE"))
 
 (defn data-uri->blob
   [data-uri]
@@ -76,12 +77,14 @@
   "/1.1/statuses/update.json")
 
 (defn tweet!
-  [cppn]
-  (let [params #js {} #_{:cache true}]
+  "On success, calls tweet-callback with
+  {:id-str, :screen-name}"
+  [cppn reply-info tweet-callback]
+  (let [params #js {:cache true}]
     (-> (.popup js/OAuth "twitter" params)
         (.done
          (fn [twitter]
-           (let [tweet #js {:status (str "Hello world."
+           (let [tweet #js {:status (str "Hello world. "
                                          (uri-with-cppn cppn))}]
              ;; media_ids
              (-> twitter
@@ -89,10 +92,13 @@
                         #js {:data tweet})
                  (.done
                   (fn [data]
-                    (println "tweeted!" (js->clj data))))
+                    (println "tweeted!" (js->clj data))
+                    (let [m {:id-str (get data "id_str")
+                             :screen-name (get-in data ["user" "screen_name"])}]
+                      (tweet-callback m))))
                  (.fail
                   (fn [err]
-                    (println "tweet failed:" (js->clj err))))))))
+                    (.alert js/window (str "Tweet failed: " (js->clj err)))))))))
         (.fail
          (fn [err]
-           (println "oauth failed:" (js->clj err)))))))
+           (.alert js/window (str "OAuth failed:" (js->clj err))))))))

@@ -12,7 +12,7 @@
                   :exclusions [org.clojure/tools.reader]]
                  [fipp "0.6.7" :exclusions [org.clojure/core.rrb-vector]]
                  [quantum/org.clojure.core.rrb-vector "0.0.12"]
-                 [cljsjs/oauthio "0.4.0-0"]
+                 [cljsjs/oauthio "0.6.1-0"]
                  [reagent "0.6.0"]
                  [reagent-forms "0.5.28"]]
 
@@ -51,7 +51,7 @@
                {:id "min"
                 :source-paths ["src"]
                 :compiler {:output-to "resources/public/js/compiled/org/nfrac/cppnx.js"
-                           :main org.nfrac.cppnx.core
+                           :main org.nfrac.cppnx.app
                            :optimizations :advanced
                            :pretty-print false}}]}
 
