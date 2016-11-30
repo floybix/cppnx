@@ -9,13 +9,13 @@
 (def example-cppn
   {:inputs #{:bias :x :y :d}
    :outputs #{:h :s :v}
-   :nodes {:init :gaussian}
-   :edges {:init {:d 1.0
-                  :y 1.0}
-           :h {:init 1.0}
-           :s {:init 0.5
+   :nodes {:i0 :gaussian}
+   :edges {:i0 {:d 1.0
+                :y 1.0}
+           :h {:i0 1.0}
+           :s {:i0 0.5
                :x -1.0}
-           :v {:init 1.0}}})
+           :v {:i0 1.0}}})
 
 (def all-node-types
   #{:linear :sine :gaussian :sigmoid :sawtooth})
@@ -96,11 +96,28 @@
                         i))
                 (edge-list cppn)))
 
+(def node-prefixes (seq "nmpqrstbcdefgh"))
+
+(defn gen-node-id
+  "Scan through integer range until find usable id.
+  Instead of gensym so as to keep the ids small < 100
+  and avoid collisions with externally provided nodes."
+  [cppn]
+  (loop [pres node-prefixes
+         i 0]
+    (let [pre (first pres)
+          k (keyword (str pre i))]
+      (if (>= i 100)
+        (recur (rest pres) 0)
+        (if (contains? (:nodes cppn) k)
+          (recur pres (inc i))
+          k)))))
+
 (defn mutate-append-node
   [cppn]
   (let [types all-node-types
         type (rand-nth (seq types))
-        id (keyword (gensym "n"))
+        id (gen-node-id cppn)
         to1 (rand-nth (seq (:outputs cppn)))
         [from1 w1] (rand-nth (seq (get-in cppn [:edges to1])))]
     (-> cppn
