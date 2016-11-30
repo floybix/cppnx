@@ -442,7 +442,7 @@
                             (swap! app-state assoc-in [:cppn :edges sel from-node]
                                    x)))}]])))]])
 
-(defn code-pane
+(defn code-pane-content
   [app-state ui-state]
   [:div
    [:p
@@ -463,6 +463,22 @@
    [:h5 "Fragment shader"]
    [:pre
     (:fragment-glsl @gl-cache)]])
+
+(defn code-pane
+  [app-state ui-state]
+  [:div
+   [:div.panel.panel-default
+    [:div.panel-heading
+     [:b
+      "Data / code "]
+     [:button.btn.btn-default.btn-sm
+      {:on-click
+       (fn [e]
+         (swap! ui-state update :show-code? #(not %)))}
+      (if (:show-code? @ui-state) "hide" "show")]]
+    (when (:show-code? @ui-state)
+      [:div.panel-body
+       [code-pane-content app-state ui-state]])]])
 
 (defn settings-pane
   [app-state ui-state]
@@ -505,21 +521,7 @@
             [node-controls app-state ui-state sel (contains? (:nodes cppn) sel)])
           ;; Topology controls
           (when-not (:animating? @ui-state)
-            [topology-controls app-state ui-state])
-          ;; Source
-          [:div
-           [:div.panel.panel-default
-            [:div.panel-heading
-              [:b
-               "Data / code "]
-             [:button.btn.btn-default.btn-sm
-              {:on-click
-               (fn [e]
-                 (swap! ui-state update :show-code? #(not %)))}
-              (if (:show-code? @ui-state) "hide" "show")]]
-            (when (:show-code? @ui-state)
-              [:div.panel-body
-               [code-pane app-state ui-state]])]]]))))
+            [topology-controls app-state ui-state])]))))
 
 (defn mutants-pane
   [{:keys [n-mutants show-mutants? animating?]}]
@@ -811,7 +813,8 @@
       [mutants-pane (select-keys @ui-state
                                  [:n-mutants :show-mutants? :animating?])]]
      [:div.col-lg-6.col-md-4
-      [settings-pane app-state ui-state]]]]])
+      [settings-pane app-state ui-state]
+      [code-pane app-state ui-state]]]]])
 
 (reagent/render-component [app-pane app-state ui-state]
                           (. js/document (getElementById "app")))
