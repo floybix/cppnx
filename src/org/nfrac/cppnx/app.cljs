@@ -224,12 +224,11 @@
 
 (defn tour-stop!
   [app-state ui-state]
-  (let [gl-info-ref (:gl-info-ref @ui-state)
-        weights (:weights (:tour @gl-info-ref))]
+  (when-let [gl-info-ref (:gl-info-ref @ui-state)]
     (swap! gl-info-ref assoc :stop! true)
-    (swap! ui-state dissoc :animating? :gl-info-ref)
-    (swap-advance! app-state
-                   update :cppn cppnx/set-cppn-weights weights)))
+    (when-let [weights (:weights (:tour @gl-info-ref))]
+      (swap-advance! app-state update :cppn cppnx/set-cppn-weights weights)))
+  (swap! ui-state dissoc :animating? :gl-info-ref))
 
 (defn tour-controls
   [app-state ui-state]
@@ -523,7 +522,7 @@
                [code-pane app-state ui-state]])]]]))))
 
 (defn mutants-pane
-  [n-mutants show-mutants? animating?]
+  [{:keys [n-mutants show-mutants? animating?]}]
   (let []
     [:div
      [:div.row
@@ -581,7 +580,7 @@
    :opacity          0.8})
 
 (defn view-pane
-  [app-state {:keys [n-mutants show-mutants? animating?]}]
+  [app-state animating?]
   (let []
     [:div
      [:div.backdrop
@@ -608,12 +607,10 @@
               (swap! gl-cache assoc
                      :img-data (.toDataURL el)
                      :vertex-glsl (:vertex-glsl info)
-                     :fragment-glsl (:fragment-glsl info)))))]]]
-     ;; pass derefd to avoid needless deref triggers
-     [mutants-pane n-mutants show-mutants? animating?]]))
+                     :fragment-glsl (:fragment-glsl info)))))]]]]))
 
 (defn snapshots-pane
-  [app-state ui-state]
+  [app-state]
   [:div
    {:style {:width "100%"
             :margin-bottom "5px"
@@ -807,11 +804,12 @@
       [intro-pane]]]
     [:div.row
      [:div.col-lg-12
-      [snapshots-pane app-state ui-state]]]
+      [snapshots-pane app-state]]]
     [:div.row
      [:div.col-lg-6.col-md-8
-      [view-pane app-state
-       (select-keys @ui-state [:n-mutants :show-mutants? :animating?])]]
+      [view-pane app-state (:animating? @ui-state)]
+      [mutants-pane (select-keys @ui-state
+                                 [:n-mutants :show-mutants? :animating?])]]
      [:div.col-lg-6.col-md-4
       [settings-pane app-state ui-state]]]]])
 
