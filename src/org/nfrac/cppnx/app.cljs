@@ -523,8 +523,8 @@
                [code-pane app-state ui-state]])]]]))))
 
 (defn mutants-pane
-  [mutants-state n-mutants show-mutants? animating?]
-  (let [mutants (:mutants @mutants-state)]
+  [n-mutants show-mutants? animating?]
+  (let []
     [:div
      [:div.row
       [:div.col-lg-12
@@ -553,7 +553,7 @@
      (when (and show-mutants? (not animating?))
        [:div.row
         [:div.col-lg-12
-         (for [[i cppn] (map-indexed vector mutants)]
+         (for [i (range n-mutants)]
            ^{:key (str "mutant" i)}
            [:div.pull-left
             [glcanvas
@@ -562,11 +562,13 @@
                       :width "100px"
                       :height "100px"}
               :on-click (fn [e]
-                          (swap-advance! app-state assoc :cppn cppn))}
+                          (let [cppn (get-in @mutants-state [:mutants i])]
+                            (swap-advance! app-state assoc :cppn cppn)))}
              100 100
              [mutants-state]
              (fn [gl]
-                 (let [info (gl-setup gl cppn)]
+                 (let [cppn (get-in @mutants-state [:mutants i])
+                       info (gl-setup gl cppn)]
                    (gl-render info (cppnx/cppn-weights cppn))))]])]])]))
 
 (def backdrop-style
@@ -608,7 +610,7 @@
                      :vertex-glsl (:vertex-glsl info)
                      :fragment-glsl (:fragment-glsl info)))))]]]
      ;; pass derefd to avoid needless deref triggers
-     [mutants-pane mutants-state n-mutants show-mutants? animating?]]))
+     [mutants-pane n-mutants show-mutants? animating?]]))
 
 (defn snapshots-pane
   [app-state ui-state]
