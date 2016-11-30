@@ -10,6 +10,8 @@
             [fipp.edn]
             [fipp.clojure]
             [reagent.core :as reagent :refer [atom]]
+            [reagent-forms.core :refer [bind-fields]]
+            [reagent-modals.modals :as reagent-modals]
             [goog.dom :as dom]
             [goog.dom.classes :as classes]
             [goog.dom.forms :as forms]
@@ -37,9 +39,10 @@
 (defonce ui-state
   (atom init-ui-state))
 
-(defonce glsl-cache
+(defonce gl-cache
   (atom {:vertex-glsl ""
-         :fragment-glsl ""}))
+         :fragment-glsl ""
+         :img-data nil}))
 
 (defn generate-mutants
   [cppn ui-state]
@@ -457,10 +460,10 @@
    [:h4 "GLSL"]
    [:h5 "Vertex shader"]
    [:pre
-    (:vertex-glsl @glsl-cache)]
+    (:vertex-glsl @gl-cache)]
    [:h5 "Fragment shader"]
    [:pre
-    (:fragment-glsl @glsl-cache)]])
+    (:fragment-glsl @gl-cache)]])
 
 (defn settings-pane
   [app-state ui-state]
@@ -594,12 +597,14 @@
         [app-state]
         (fn [gl]
           (when-not animating?
-            (let [cppn (:cppn @app-state)
+            (let [el (dom/getElementByClass gl-canvas-class)
+                  cppn (:cppn @app-state)
                   info (gl-setup gl cppn)]
-              (swap! glsl-cache assoc
+              (gl-render info (cppnx/cppn-weights cppn))
+              (swap! gl-cache assoc
+                     :img-data (.toDataURL el)
                      :vertex-glsl (:vertex-glsl info)
-                     :fragment-glsl (:fragment-glsl info))
-              (gl-render info (cppnx/cppn-weights cppn)))))]]]
+                     :fragment-glsl (:fragment-glsl info)))))]]]
      ;; pass derefd to avoid needless deref triggers
      [mutants-pane mutants-state n-mutants show-mutants? animating?]]))
 
@@ -640,6 +645,85 @@
       "Snapshots won't survive after leaving this page, but you can "
       "bookmark this page to keep the current CPPN (only)."])])
 
+(def tweetbox-template
+  [:div
+    [:textarea.form-control {:field :textarea
+                             :id :text
+                             :rows 3
+                             :maxLength 115}]
+    [:p.text-muted.small
+     "This text box is limited to 115 chars, to leave space for the link."]
+    [:p
+     "If you started from a published CPPN, reply to it! "
+     "Paste the original tweet location here: "]
+    [:div
+     [:input.form-control
+      {:field :text
+       :id :reply-to-uri
+       :placeholder "https://twitter.com/____/status/_____"}]]
+    [:p
+     "Note, a reply must include their @ handle in the message too; "
+     "we'll stick it at the beginning unless you include it yourself."]])
+
+(defn tweet-modal-content
+  [doc]
+  [:div
+   {:style {:margin "1em"}}
+   [:h3 "Publish on Twitter"]
+   [:p.lead
+    "All right, let's share this \"stepping stone\" "
+    "so that others can, er, step on it."]
+   [:p
+    "The tweet will include the image and a link back to this page, "
+    "plus any hash tags or text you add here. "
+    "How about #face, #planet or #flying-spaghetti-monster?"]
+   [:p "Better keep the #cppnx tag so this stuff is findable."]
+   [:div
+    [bind-fields tweetbox-template doc]]
+   (when-not (:success? @doc)
+     [:div
+      [:button.btn.btn-primary.btn-lg
+       {:style {:margin "5px"}
+        :on-click (fn [e]
+                    (swap! doc assoc :pending? true)
+                    (share/tweet! (:cppn @app-state)
+                                  (:img-data @gl-cache)
+                                  (:text @doc)
+                                  (:reply-to-uri @doc)
+                                  (fn [tweet-info]
+                                    (swap! app-state assoc :reply-info tweet-info)
+                                    (swap! doc assoc :success? true))))
+        :disabled (when (:pending? @doc) "disabled")}
+       (if (:pending? @doc) "...working..." "Tweet!")]
+      [:span
+       " You'll be asked to sign in to a Twitter account to post it."]])
+   ;; success
+   (when (:success? @doc)
+     [:div
+      [:p.bg-success
+       "Woohoo! "
+       (let [info (:reply-info @app-state)]
+         [:a {:href (share/tweet-uri info)}
+          "Your tweet"])
+       " was posted."]
+      [:button.btn.btn-default.btn-lg
+       {:style {:margin "5px"}
+        :on-click (fn [e]
+                    (reagent-modals/close-modal!))}]])])
+
+(defn prepare-tweet!
+  [app-state]
+  (let [reply-info (:reply-info @app-state)
+        ini-text (str (when reply-info
+                        (str "@" (:screen-name reply-info) " "))
+                      "#cppnx")
+        doc (atom {:text ini-text
+                   :reply-to-uri (if reply-info
+                                   (share/tweet-uri reply-info)
+                                   "")})]
+   (reagent-modals/modal!
+    [tweet-modal-content doc])))
+
 (defn navbar
   [app-state ui-state]
   (let [freeze? (:animating? @ui-state)]
@@ -665,9 +749,7 @@
           {:type :button
            :on-click
            (fn [_]
-             (share/tweet! (:cppn @app-state)
-                           (:reply-info @app-state)
-                           #(swap! app-state assoc :reply-info %)))
+             (prepare-tweet! app-state))
            :title "Publish on Twitter"
            :disabled (when freeze? "disabled")}
           "Publish on Twitter"]]]
@@ -714,6 +796,7 @@
   [app-state ui-state]
   [:div
    [navbar app-state ui-state]
+   [reagent-modals/modal-window]
    [:div.container-fluid
     [:div.row
      [:div.col-lg-12

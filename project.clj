@@ -14,7 +14,8 @@
                  [quantum/org.clojure.core.rrb-vector "0.0.12"]
                  [cljsjs/oauthio "0.6.1-0"]
                  [reagent "0.6.0"]
-                 [reagent-forms "0.5.28"]]
+                 [reagent-forms "0.5.28"]
+                 [org.clojars.frozenlock/reagent-modals "0.2.6"]]
 
   :plugins [[lein-figwheel "0.5.8"]
             [lein-cljsbuild "1.1.4" :exclusions [[org.clojure/clojure]]]]
