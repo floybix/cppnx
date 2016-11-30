@@ -209,7 +209,7 @@
         wp (:waypoints tour)
         at-frac (+ (/ (- (:scrub @ui-state)) 1000)
                    (/ (- (:scrub-detail @ui-state)) 1000 (count wp) 0.5))
-        wpf (* at-frac (dec (count wp)))
+        wpf (* (min at-frac 0.999) (dec (count wp)))
         wpi (Math/floor wpf)
         [to-w from-w] (take 2 (drop wpi wp))
         motions (reduce (fn [ms [i from to]]
