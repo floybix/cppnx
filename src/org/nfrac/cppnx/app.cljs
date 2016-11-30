@@ -489,9 +489,9 @@
               to (:to m)
               f (case (:event m)
                   :select
-                  (fn [s]
+                  (do
                     (swap! ui-state assoc :selection (:node m))
-                    s)
+                    nil)
                   :link
                   (fn [s]
                     (cond
@@ -501,7 +501,8 @@
                       (update s :cppn cppnx/remove-edge from to)
                       :else
                       (update s :cppn cppnx/link-nodes from to))))]
-           (swap-advance! app-state f))
+           (when f
+             (swap-advance! app-state f)))
         (recur)))
     (fn [_ _]
       (let [cppn (:cppn @app-state)]
