@@ -25,7 +25,7 @@ void main(void){
 ")
 
 (defn- to-0-1 [expr]
-  (str "(" expr " * 0.5 + 0.5)"))
+  (str "abs(" expr ")"))
 
 (defn fragment-shader
   [cppn]
