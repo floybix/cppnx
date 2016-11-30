@@ -585,7 +585,9 @@
      [:div.backdrop
       {:style (cond-> backdrop-style
                 (not animating?)
-                (assoc :display "none"))}]
+                (assoc :display "none"))
+       :on-click (fn [e]
+                   (when animating? (tour-stop! app-state ui-state)))}]
      [:div.row
       [:div.col-lg-12
        [glcanvas
