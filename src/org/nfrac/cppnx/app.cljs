@@ -51,7 +51,7 @@
         ms (for [i (range n-mut)]
              (let [c (if (>= i (quot n-mut 2)) ;; second half
                        (cond
-                         (< (rand) 0.33)
+                         (< (rand) 0.5)
                          (cppnx/mutate-append-node cppn)
                          (< (rand) 0.5)
                          (cppnx/mutate-add-conn cppn)
@@ -667,7 +667,19 @@
        :placeholder "https://twitter.com/____/status/_____"}]]
     [:p
      "Note, a reply must include their @ handle in the message too; "
-     "we'll stick it at the beginning unless you include it yourself."]])
+     "we'll stick it at the beginning unless you include it yourself."]
+    [:div.checkbox
+     [:label
+      [:input
+       {:field :checkbox
+        :id :include-url?}]
+      " Include URI (leave this on)"]]
+    [:div.checkbox
+     [:label
+      [:input
+       {:field :checkbox
+        :id :include-img?}]
+      " Include image (leave this on)"]]])
 
 (defn tweet-modal-content
   [doc]
@@ -682,9 +694,9 @@
     "plus any hash tags or text you add here. "
     "How about #face, #planet or #flying-spaghetti-monster?"]
    [:p "Better keep the #cppnx tag so this stuff is findable."]
-   [:div
-    [bind-fields tweetbox-template doc]]
-   (when-not (:success? @doc)
+   (when-not (or (:success? @doc) (:pending? @doc))
+    [:div
+     [bind-fields tweetbox-template doc]
      [:div
       [:button.btn.btn-primary.btn-lg
        {:style {:margin "5px"}
@@ -696,15 +708,28 @@
                                   (:reply-to-uri @doc)
                                   (fn [tweet-info]
                                     (swap! app-state assoc :reply-info tweet-info)
-                                    (swap! doc assoc :success? true))))
+                                    (swap! doc assoc :success? true))
+                                  (:include-url? @doc)
+                                  (:include-img? @doc)))
         :disabled (when (:pending? @doc) "disabled")}
-       (if (:pending? @doc) "...working..." "Tweet!")]
+       "Tweet!"]
       [:span
-       " You'll be asked to sign in to a Twitter account to post it."]])
+       " You'll be asked to sign in to a Twitter account to post it."]]])
+   ;; pending
+   (when (:pending? @doc)
+     [:div
+      [:p "Uploading, hopefully..."]
+      [:div.progress
+       [:div.progress-bar.progress-bar-striped.active
+        {:aria-valuenow "100"
+         :aria-valuemin "0"
+         :aria-valuemax "100"
+         :style {:width "100%"}}]]])
    ;; success
    (when (:success? @doc)
      [:div
       [:p.bg-success
+       {:style {:padding "1ex"}}
        "Woohoo! "
        (let [info (:reply-info @app-state)]
          [:a {:href (share/tweet-uri info)}
@@ -713,7 +738,8 @@
       [:button.btn.btn-default.btn-lg
        {:style {:margin "5px"}
         :on-click (fn [e]
-                    (reagent-modals/close-modal!))}]])])
+                    (reagent-modals/close-modal!))}
+       "Close"]])])
 
 (defn prepare-tweet!
   [app-state]
@@ -722,6 +748,8 @@
                         (str "@" (:screen-name reply-info) " "))
                       "#cppnx")
         doc (atom {:text ini-text
+                   :include-url? true
+                   :include-img? true
                    :reply-to-uri (if reply-info
                                    (share/tweet-uri reply-info)
                                    "")})]

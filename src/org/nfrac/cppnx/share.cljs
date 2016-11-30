@@ -51,8 +51,8 @@
 
 (defn uri-with-cppn
   [cppn*]
-  (let [cppn (dissoc cppn* :input :outputs) ;; inferred from :domain
-        uri (goog.Uri. (.-location js/window))
+  (let [cppn (dissoc cppn* :inputs :outputs) ;; inferred from :domain
+        uri (goog.Uri. #_(.-location js/window) "https://floybix.github.com/cppnx/")
         qd (goog.Uri.QueryData/createFromMap
             #js {:cppn (cppn->uristr cppn)})]
     (.setQueryData uri qd)
@@ -60,6 +60,8 @@
 
 (defonce init-oauth
   (.initialize js/OAuth "G8cnIzClY3nbnOniOAQzkHvMcfE"))
+
+;(.clearCache js/OAuth)
 
 (defn data-uri->blob
   [data-uri]
@@ -91,12 +93,14 @@
             (str/includes? text (str "@" handle))
             (>= (.-length (str handle text)) 113))
       text
-      (str "@" handle " " (str/trim text)))))
+      (str "@" handle " " (str/trim text)))
+    text))
 
 (defn tweet!
   "On success, calls tweet-callback with info on tweet just posted,
   {:id-str, :screen-name}"
-  [cppn img-data text reply-to-uri tweet-callback]
+  [cppn img-data text reply-to-uri tweet-callback
+   include-url? include-img?]
   (let [reply-to (when reply-to-uri (parse-tweet-uri reply-to-uri))
         twitext (ensure-contains-handle text reply-to)]
     (->
@@ -116,8 +120,15 @@
                  (println "uploaded!" (js->clj data))
                  (let [data (js->clj data)
                        mid (get data "media_id_string")
-                       tweet #js {:status (str twitext " " (uri-with-cppn cppn))
-                                  :media_ids (array mid)}]
+                       tweet (clj->js
+                              (cond->
+                               {:status (if include-url?
+                                          (str twitext " " (uri-with-cppn cppn))
+                                          twitext)}
+                               include-img?
+                               (assoc :media_ids [mid])
+                               reply-to
+                               (assoc :in_reply_to_status_id (:id-str reply-to))))]
                    (-> twitter
                        (.post post-status-url
                               #js {:data tweet})
