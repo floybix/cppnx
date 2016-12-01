@@ -20,6 +20,9 @@
 (def all-node-types
   #{:linear :sine :gaussian :sigmoid :sawtooth})
 
+(def auto-node-types
+  (disj all-node-types :sawtooth))
+
 (s/def ::node-id (-> any? (s/with-gen #(s/gen ident?))))
 (s/def ::inputs (s/coll-of ::node-id, :min-count 1, :kind set?))
 (s/def ::outputs (s/coll-of ::node-id, :min-count 1, :kind set?))
@@ -115,8 +118,7 @@
 
 (defn mutate-append-node
   [cppn]
-  (let [types all-node-types
-        type (rand-nth (seq types))
+  (let [type (rand-nth (seq auto-node-types))
         id (gen-node-id cppn)
         to1 (rand-nth (seq (:outputs cppn)))
         [from1 w1] (rand-nth (seq (get-in cppn [:edges to1])))]
