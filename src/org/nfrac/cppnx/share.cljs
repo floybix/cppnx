@@ -51,7 +51,7 @@
 
 (defn uri-with-cppn
   [cppn*]
-  (let [cppn (dissoc cppn* :inputs :outputs) ;; inferred from :domain
+  (let [cppn (select-keys cppn* [:nodes :edges :domain])
         uri (goog.Uri. (.-location js/window))
         qd (goog.Uri.QueryData/createFromMap
             #js {:cppn (cppn->uristr cppn)})]

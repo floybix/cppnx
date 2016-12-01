@@ -6,14 +6,16 @@
 (def start-cppn
   {:inputs #{:bias :x :y :d}
    :outputs #{:h :s :v}
+   :finals #{:h :s}
    :nodes {:i0 :gaussian}
    :edges {:i0 {:d 1.0
                 :y 1.0
                 :x 1.0
                 :bias -1.0}
+           :v {:i0 1.0}
            :h {:i0 1.0}
-           :s {:i0 0.5}
-           :v {:i0 1.0}}})
+           :s {:i0 0.5
+               :v 1.0}}})
 
 (def vertex-shader
   "precision highp float;

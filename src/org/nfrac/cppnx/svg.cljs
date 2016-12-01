@@ -79,10 +79,10 @@
       (for [[node info] by-node
             :let [valid-drop? (fn []
                                 (let [from (:node @dragging)
-                                      output? (:outputs cppn)
+                                      final? (cppnx/finals cppn)
                                       input? (:inputs cppn)]
                                   (and from node (not= from node)
-                                       (not (and (output? from) (output? node)))
+                                       (not (and (final? from) (final? node)))
                                        (not (and (input? from) (input? node))))))
                   drag-start (fn [e]
                                (let [[x y] (offset-from-svg e)]
@@ -127,7 +127,8 @@
            :onTouchStart drag-touch
            :onTouchEnd drop ;; could be leave or drop
            :onClick click
-           :style {:cursor "alias"}}]
+           :style {:cursor "alias"
+                   :user-select "none"}}]
          [:text
           {:style {:pointer-events "none"
                    :user-select "none"}

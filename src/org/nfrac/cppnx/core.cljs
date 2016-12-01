@@ -9,19 +9,20 @@
 (def example-cppn
   {:inputs #{:bias :x :y :d}
    :outputs #{:h :s :v}
+   :finals #{:h :s}
    :nodes {:i0 :gaussian}
    :edges {:i0 {:d 1.0
                 :y 1.0}
+           :v {:i0 1.0}
            :h {:i0 1.0}
            :s {:i0 0.5
-               :x -1.0}
-           :v {:i0 1.0}}})
+               :v -1.0}}})
 
 (def all-node-types
-  #{:linear :sine :gaussian :sigmoid :sawtooth})
+  #{:linear :gaussian :sigmoid :sine :sawtooth})
 
 (def auto-node-types
-  (disj all-node-types :sawtooth))
+  #{:linear :gaussian :sigmoid :sine})
 
 (s/def ::node-id (-> any? (s/with-gen #(s/gen ident?))))
 (s/def ::inputs (s/coll-of ::node-id, :min-count 1, :kind set?))
@@ -44,6 +45,10 @@
         (map (fn [[k v]] [k (f v)]))
         m))
 
+(defn finals
+  [cppn]
+  (or (:finals cppn) (:outputs cppn)))
+
 (defn cppn-graph
   [cppn]
   (graph/directed-graph (concat (:inputs cppn)
@@ -51,18 +56,21 @@
                                 (:outputs cppn))
                         (remap keys (:edges cppn))))
 
-(defn cppn-graph-no-outputs
+(defn cppn-graph-no-finals
   [cppn]
-  (graph/directed-graph (concat (:inputs cppn)
-                                (keys (:nodes cppn)))
-                        (remap keys (apply dissoc (:edges cppn) (:outputs cppn)))))
+  (let [finals (finals cppn)
+        nodes (concat (:inputs cppn)
+                      (keys (:nodes cppn))
+                      (remove finals (:outputs cppn)))]
+    (graph/directed-graph nodes
+                          (remap keys (apply dissoc (:edges cppn) finals)))))
 
 (defn cppn-strata
   "A list of sets. The first set contains the only inputs, the last only the
-  outputs."
+  final outputs."
   [cppn]
-  (concat (graph/dependency-list (cppn-graph-no-outputs cppn))
-          [(:outputs cppn)]))
+  (concat (graph/dependency-list (cppn-graph-no-finals cppn))
+          [(finals cppn)]))
 
 (defn downstream
   "Returns the collection of all downstream nodes including self."
@@ -179,7 +187,7 @@
   "Attempt to link node a -> b,
    but if that would be cyclic, link b -> a instead."
   [cppn node-a node-b]
-  (if (or (contains? (:outputs cppn) node-a)
+  (if (or (contains? (finals cppn) node-a)
           (contains? (:inputs cppn) node-b)
           (contains? (downstream cppn node-b) node-a))
     (assoc-in cppn [:edges node-a node-b] 1.0)
