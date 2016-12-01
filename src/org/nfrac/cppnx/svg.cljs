@@ -81,7 +81,7 @@
                                 (let [from (:node @dragging)
                                       output? (:outputs cppn)
                                       input? (:inputs cppn)]
-                                  (and (not= from node)
+                                  (and from node (not= from node)
                                        (not (and (output? from) (output? node)))
                                        (not (and (input? from) (input? node))))))
                   drag-start (fn [e]
