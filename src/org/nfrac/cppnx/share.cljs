@@ -61,8 +61,6 @@
 (defonce init-oauth
   (.initialize js/OAuth "G8cnIzClY3nbnOniOAQzkHvMcfE"))
 
-;(.clearCache js/OAuth)
-
 (defn data-uri->blob
   [data-uri]
   (let [[intro blah] (str/split data-uri #"," 2)
@@ -126,7 +124,7 @@
                                           (str twitext " " (uri-with-cppn cppn))
                                           twitext)}
                                include-img?
-                               (assoc :media_ids [mid])
+                               (assoc :media_ids mid)
                                reply-to
                                (assoc :in_reply_to_status_id (:id-str reply-to))))]
                    (-> twitter
