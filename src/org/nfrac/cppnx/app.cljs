@@ -668,18 +668,20 @@
     [:p
      "Note, a reply must include their @ handle in the message too; "
      "we'll stick it at the beginning unless you include it yourself."]
-    [:div.checkbox
-     [:label
-      [:input
-       {:field :checkbox
-        :id :include-url?}]
-      " Include URI (leave this on)"]]
-    [:div.checkbox
-     [:label
-      [:input
-       {:field :checkbox
-        :id :include-img?}]
-      " Include image (leave this on)"]]])
+    [:div.small
+     {:style {:text-align "right"}}
+     [:div.checkbox
+      [:label
+       [:input
+        {:field :checkbox
+         :id :include-url?}]
+       " Include URI (leave this on)"]]
+     [:div.checkbox
+      [:label
+       [:input
+        {:field :checkbox
+         :id :include-img?}]
+       " Include image (leave this on)"]]]])
 
 (defn tweet-modal-content
   [doc]
@@ -714,7 +716,14 @@
         :disabled (when (:pending? @doc) "disabled")}
        "Tweet!"]
       [:span
-       " You'll be asked to sign in to a Twitter account to post it."]]])
+       " You'll be asked to sign in to a Twitter account to post it. "]
+      [:span.small.text-muted
+       [:a {:href "#"
+            :on-click (fn [e]
+                        (.preventDefault e)
+                        (.clearCache js/OAuth))}
+        "forget me"]]]])
+
    ;; pending
    (when (:pending? @doc)
      [:div

@@ -52,7 +52,7 @@
 (defn uri-with-cppn
   [cppn*]
   (let [cppn (dissoc cppn* :inputs :outputs) ;; inferred from :domain
-        uri (goog.Uri. #_(.-location js/window) "https://floybix.github.com/cppnx/")
+        uri (goog.Uri. (.-location js/window))
         qd (goog.Uri.QueryData/createFromMap
             #js {:cppn (cppn->uristr cppn)})]
     (.setQueryData uri qd)
