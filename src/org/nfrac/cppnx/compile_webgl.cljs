@@ -44,6 +44,7 @@ float tanh(float x) {
   Weights: w-exprs should be a map from edge [to from] to glsl string."
   [cppn w-exprs]
   (let [strata (cppnx/cppn-strata cppn)
+        zerod? (or (:zerod cppn) #{})
         sorted-nids (apply concat (rest strata))]
     (->>
      sorted-nids
@@ -55,8 +56,12 @@ float tanh(float x) {
                                  (let [w (get w-exprs [nid k])]
                                    (str "(" w " * " (name k) ")"))))
                           (str/join " + "))
-                 expr (if (= :linear node-type)
+                 expr (cond
+                        (zerod? nid)
+                        "0.0"
+                        (= :linear node-type)
                         sum
+                        :else
                         (str (name node-type) "(" sum ")"))]
              [(name nid) expr]))))))
 

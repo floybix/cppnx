@@ -19,6 +19,7 @@
 (defn cppn-svg
   [cppn selection event-c]
   (let [strata (cppnx/cppn-strata cppn)
+        zerod? (:zerod cppn #{})
         row-px 70
         height-px (* row-px (count strata))
         width-px 400
@@ -117,8 +118,9 @@
            :rx radius-x
            :ry radius-y
            :fill (if (= selection node) "#bdf" "#eee")
-           :stroke (if (= selection node) "#888" "#ddd")
-           :stroke-width "1"
+           :stroke (if (zerod? node) "#000"
+                     (if (= selection node) "#888" "#ddd"))
+           :stroke-width (if (zerod? node) "4" "1")
            ;; note - SVG doesn't support actual drag&drop events
            :onMouseDown drag-start
            :onMouseEnter drag-enter

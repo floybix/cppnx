@@ -362,9 +362,6 @@
     [:span.small.text-muted
      " ...for an easier time, choose one of the mutants shown below the pic."]]
    [:div.panel-body
-    [:p.text-muted
-     (str "Just drag between nodes to add or remove links in the graph above."
-          " Click a node to edit it. Or make a random mutation:")]
     [:div.btn-group.btn-group-justified
      [:div.btn-group
       [:button.btn.btn-default
@@ -383,73 +380,108 @@
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-rewire-conn))}
-       "Random rewire"]]]]])
+       "Random rewire"]]]
+    [:div.text-muted
+     "Hints."]
+    [:ul.text-muted
+     [:li "Drag from a source node to a target node to add a link."]
+     [:li "Drag along an existing link to remove it."]
+     [:li "Click a node to edit it, or its incoming links."]
+     [:li "For black & white, click \"s\" (saturation) and then Override (0)."]
+     [:li "To vary just color, click \"h\" (hue) and then vary weights, etc."]]]])
+
+(defn conj-to-set-key [m k x]
+  (update m k #(conj (or % #{}) x)))
+
+(defn disj-from-set-key [m k x]
+  (let [s (disj (get m k) x)]
+    (if (empty? s)
+      (dissoc m k)
+      (assoc m k s))))
 
 (defn node-controls
   [app-state ui-state sel fun-node?]
-  [:div.panel.panel-primary
-   [:div.panel-heading
-    [:b "Selected node"]]
-   [:div.panel-body
-    [:div.form-inline
-     (when fun-node?
-       [:button.btn.btn-default
-        {:style {:margin-right "1ex"}
-         :on-click (fn [e]
-                     (swap-advance! app-state update :cppn
-                                    cppnx/delete-node sel)
-                     (swap! ui-state assoc :selection nil))}
-        "Delete"])
-     (when fun-node?
-       [:div.form-group
-        [:label "Function:"]
-        [:select.form-control
-         {:value (-> @app-state :cppn :nodes (get sel) name)
-          :on-change (fn [e]
-                       (let [s (-> e .-target forms/getValue)
-                             type (keyword s)]
-                         (swap-advance! app-state assoc-in
-                                        [:cppn :nodes sel] type)))}
-         (doall
-          (for [type cppnx/all-node-types]
-            [:option {:key (name type)
-                      :value (name type)}
-             (name type)]))]])
-     [:span
-      " Incoming edge weights:"]]
-    (let [cppn (:cppn @app-state)]
-      (doall
-        (for [[from-node w] (-> cppn :edges sel sort)
-              :let [from-label (name (or (get (:nodes cppn) from-node)
-                                         from-node))]]
-          ^{:key from-node}
-          [:div
-           [:label
-            {:style {:display "inline-block"
-                     :width "20%"}}
-            (str from-label ": "
-                 (-> w (* 100) int (/ 100)))]
-           [:input
-            {:style {:display "inline-block"
-                     :width "75%"}
-             :type "range"
-             ;; square-root transformed on both pos/neg sides
-             :min -4 ;; effectively -16
-             :max 4 ;; effectively 16
-             :step 0.005
-             :value (* (Math/sqrt (Math/abs w)) (if (neg? w) -1 1))
-             :on-change (fn [e]
-                          (let [z (-> e .-target forms/getValue js/parseFloat)
-                                x (* z z (if (neg? z) -1 1))]
-                            (swap! app-state assoc-in [:cppn :edges sel from-node]
-                                   x)))}]])))]])
+  (let [cppn (:cppn @app-state)
+        fun-node? (contains? (:nodes cppn) sel)
+        output? (contains? (:outputs cppn) sel)
+        zerod? (contains? (:zerod cppn) sel)]
+    [:div.panel.panel-primary
+     [:div.panel-heading
+      [:b "Selected node"]]
+     [:div.panel-body
+      [:div.form-inline
+       (when (or fun-node? output?)
+        [:div.checkbox
+         {:style {:padding "5px"}
+          :class (if zerod? "bg-danger" nil)}
+         [:label [:input {:type :checkbox
+                          :checked (when zerod? true)
+                          :on-change (fn [e]
+                                      (swap! app-state update-in [:cppn]
+                                             (fn [cppn]
+                                               (if zerod?
+                                                 (disj-from-set-key cppn :zerod sel)
+                                                 (conj-to-set-key cppn :zerod sel)))))}]
+          " Override (0)"]])
+       (when fun-node?
+         [:button.btn.btn-default
+          {:style {:margin "0 1ex"}
+           :on-click (fn [e]
+                       (swap-advance! app-state update :cppn
+                                      cppnx/delete-node sel)
+                       (swap! ui-state assoc :selection nil))}
+          "Delete"])
+       (when fun-node?
+         [:div.form-group
+          [:label "Function: "]
+          [:select.form-control
+           {:value (-> @app-state :cppn :nodes (get sel) name)
+            :on-change (fn [e]
+                         (let [s (-> e .-target forms/getValue)
+                               type (keyword s)]
+                           (swap-advance! app-state assoc-in
+                                          [:cppn :nodes sel] type)))}
+           (doall
+             (for [type cppnx/all-node-types]
+               [:option {:key (name type)
+                         :value (name type)}
+                (name type)]))]])
+       (when (or fun-node? output?)
+         [:span {:style {:margin-left "2em"}}
+          " Incoming edge weights:"])
+       (doall
+          (for [[from-node w] (-> cppn :edges sel sort)
+                :let [from-label (name (or (get (:nodes cppn) from-node)
+                                           from-node))]]
+            ^{:key from-node}
+            [:div
+             [:label
+              {:style {:display "inline-block"
+                       :width "20%"}}
+              (str from-label ": "
+                   (-> w (* 100) int (/ 100)))]
+             [:input
+              {:style {:display "inline-block"
+                       :width "75%"}
+               :type "range"
+               ;; square-root transformed on both pos/neg sides
+               :min -4 ;; effectively -16
+               :max 4 ;; effectively 16
+               :step 0.005
+               :value (* (Math/sqrt (Math/abs w)) (if (neg? w) -1 1))
+               :on-change (fn [e]
+                            (let [z (-> e .-target forms/getValue js/parseFloat)
+                                  x (* z z (if (neg? z) -1 1))]
+                              (swap! app-state assoc-in [:cppn :edges sel from-node]
+                                     x)))}]]))
+       [:p.bg-warning
+        {:style {:padding "5px"}}
+        "Now this node is selected, weight mutations will be limited to just "
+        "these (incoming) edges."]]]]))
 
 (defn code-pane-content
   [app-state ui-state]
   [:div
-   [:p
-    "Inputs to a CPPN are numbers in [-1,1] and the outputs transformed to [0,1]."
-    "Edge weights may be positive or negative."]
    [:h4 "EDN"]
    [:pre
     (with-out-str
@@ -522,7 +554,7 @@
               [svg/cppn-svg cppn (:selection @ui-state) svg-events-c]]]
           ;; Selection controls
           (when-let [sel (:selection @ui-state)]
-            [node-controls app-state ui-state sel (contains? (:nodes cppn) sel)])
+            [node-controls app-state ui-state sel])
           ;; Topology controls
           (when-not (:animating? @ui-state)
             [topology-controls app-state ui-state])]))))

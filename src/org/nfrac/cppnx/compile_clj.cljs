@@ -30,6 +30,7 @@
   [cppn]
   (let [sym (comp symbol name)
         strata (cppnx/cppn-strata cppn)
+        zerod? (:zerod cppn #{})
         sorted-nids (apply concat (rest strata))
         w-exprs (zipmap (cppnx/edge-list cppn)
                         (map #(list 'w %) (range)))
@@ -43,8 +44,12 @@
                              sum (if (> (count deps) 1)
                                    (apply list '+ adds)
                                    (first adds))
-                             expr (if (= :linear node-type)
+                             expr (cond
+                                    (zerod? nid)
+                                    0.0
+                                    (= :linear node-type)
                                     sum
+                                    :else
                                     (list (sym node-type) sum))]
                          [(sym nid) expr]))
                      sorted-nids)
