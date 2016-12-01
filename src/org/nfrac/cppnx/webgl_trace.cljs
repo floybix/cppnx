@@ -25,7 +25,7 @@
                     ["z" "a_z"]
                     ["bias" "1.0"]]
         cppn-assigns (glsl/cppn-glsl-assigns cppn w-exprs)
-        outpart (str "gl_Position = vec4(t,y,0,1);" \newline
+        outpart (str "gl_Position = vec4(t,tanh(y),0,1);" \newline
                      "v_color = vec4(hsv2rgb(vec3(" \newline
                      "  " (to-0-1 "z") "," \newline
                      "  " 0.75 "," \newline
