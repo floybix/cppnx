@@ -14,7 +14,7 @@
            :y {:i0 1.0}}})
 
 (defn- to-0-1 [expr]
-  (str "abs(" expr ")"))
+  (str "abs(tanh(" expr "))"))
 
 (defn vertex-shader
   [cppn]

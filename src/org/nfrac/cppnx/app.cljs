@@ -433,12 +433,14 @@
             {:style {:display "inline-block"
                      :width "75%"}
              :type "range"
-             :min -16
-             :max 16
-             :step 0.01
-             :value w
+             ;; square-root transformed on both pos/neg sides
+             :min -4 ;; effectively -16
+             :max 4 ;; effectively 16
+             :step 0.005
+             :value (* (Math/sqrt (Math/abs w)) (if (neg? w) -1 1))
              :on-change (fn [e]
-                          (let [x (-> e .-target forms/getValue js/parseFloat)]
+                          (let [z (-> e .-target forms/getValue js/parseFloat)
+                                x (* z z (if (neg? z) -1 1))]
                             (swap! app-state assoc-in [:cppn :edges sel from-node]
                                    x)))}]])))]])
 
@@ -446,7 +448,8 @@
   [app-state ui-state]
   [:div
    [:p
-    "All values in a CPPN -- inputs, outputs and edges -- range between -1.0 and +1.0."]
+    "Inputs to a CPPN are numbers in [-1,1] and the outputs transformed to [0,1]."
+    "Edge weights may be positive or negative."]
    [:h4 "EDN"]
    [:pre
     (with-out-str

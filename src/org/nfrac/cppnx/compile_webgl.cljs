@@ -14,8 +14,7 @@ vec3 hsv2rgb(vec3 c)
 (def xytod-glsl
   "
 float xytod(float x, float y) {
-  float z = sqrt((x * x) + (y * y)) * (1.0 / sqrt(2.0));
-  return (z * 2.0) - 1.0;
+  return sqrt((x * x) + (y * y));
 }
 ")
 
@@ -25,16 +24,17 @@ float sine(float x) {
   return sin(x * (3.1415 * 2.0));
 }
 float gaussian(float x) {
-  float z = exp(- pow(x * 2.5, 2.0));
-  return (z * 2.0) - 1.0;
+  return exp(- pow(x * 2.5, 2.0));
 }
 float sigmoid(float x) {
-  float z = 1.0 / (1.0 + exp(x * -4.9));
-  return (z * 2.0) - 1.0;
+  return 1.0 / (1.0 + exp(x * -4.9));
 }
 float sawtooth(float x) {
-  float z = fract(x);
-  return (z * 2.0) - 1.0;
+  return mod(x, 1.0);
+}
+float tanh(float x) {
+  float e = exp(2.0 * x);
+  return (e - 1.0) / (e + 1.0);
 }
 ")
 
@@ -55,13 +55,8 @@ float sawtooth(float x) {
                                  (let [w (get w-exprs [nid k])]
                                    (str "(" w " * " (name k) ")"))))
                           (str/join " + "))
-                 sumw (->> deps
-                           (map (fn [k]
-                                  (let [w (get w-exprs [nid k])]
-                                    (str "abs(" w ")"))))
-                           (str/join " + "))
-                 expr (if (= node-type :linear)
-                        (str "(" sum ") / (" sumw ")")
+                 expr (if (= :linear node-type)
+                        sum
                         (str (name node-type) "(" sum ")"))]
              [(name nid) expr]))))))
 

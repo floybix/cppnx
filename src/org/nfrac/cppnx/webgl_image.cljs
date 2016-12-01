@@ -8,10 +8,11 @@
    :outputs #{:h :s :v}
    :nodes {:i0 :gaussian}
    :edges {:i0 {:d 1.0
-                :y 1.0}
+                :y 1.0
+                :x 1.0
+                :bias -1.0}
            :h {:i0 1.0}
-           :s {:i0 0.5
-               :x -1.0}
+           :s {:i0 0.5}
            :v {:i0 1.0}}})
 
 (def vertex-shader
@@ -25,7 +26,7 @@ void main(void){
 ")
 
 (defn- to-0-1 [expr]
-  (str "abs(" expr ")"))
+  (str "abs(tanh(" expr "))"))
 
 (defn fragment-shader
   [cppn]

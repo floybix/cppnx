@@ -208,7 +208,7 @@
 
 (defn rand-weight
   [from-w perturbation]
-  (let [global-w (* (rand-skew 12 3) (rand-sign))
+  (let [global-w (* (rand-skew 8 3) (rand-sign))
         locally (+ from-w (* perturbation 0.5 global-w))
         globally (interp from-w global-w (* perturbation perturbation))]
     (+ (* perturbation globally)

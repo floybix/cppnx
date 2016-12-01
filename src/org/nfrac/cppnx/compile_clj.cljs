@@ -10,26 +10,21 @@
      (-> (* x 2.5)
          (Math/pow 2.0)
          (* -1.0)
-         (Math/exp)
-         (* 2.0)
-         (- 1.0)))
+         (Math/exp)))
+
    (defn sigmoid [x]
-     (-> (/ 1.0
-            (-> (* x -4.9) (Math/exp) (+ 1.0)))
-         (* 2.0)
-         (- 1.0)))
+     (/ 1.0
+        (-> (* x -4.9) (Math/exp) (+ 1.0))))
 
    (defn sawtooth [x]
-     (-> (- x (int x))
-         (* 2.0)
-         (- 1.0)))
+     (mod x 1.0))
 
    (defn abs [x] (if (neg? x) (- x) x))
 
+   (defn to-0-1 [x] (abs (Math/tanh x)))
+
    (defn xy->d [x y]
-     (- (* (Math/sqrt (+ (* x x) (* y y)))
-           (/ 2 (Math/sqrt 2.0)))
-        1.0))])
+     (Math/sqrt (+ (* x x) (* y y))))])
 
 (defn build-cppn-code
   [cppn]
@@ -41,22 +36,20 @@
         assigns (map (fn [nid]
                        (let [node-type (get-in cppn [:nodes nid] :linear)
                              deps (keys (get-in cppn [:edges nid]))
-                             sum (->> deps
-                                      (map (fn [k]
-                                             (let [w (get w-exprs [nid k])]
-                                               (list '* w (sym k)))))
-                                      (apply list '+))
-                             sumw (->> deps
+                             adds (->> deps
                                        (map (fn [k]
                                               (let [w (get w-exprs [nid k])]
-                                                (list 'abs w))))
-                                       (apply list '+))
-                             expr (if (= node-type :linear)
-                                    (list '/ sum sumw)
+                                                (list '* w (sym k))))))
+                             sum (if (> (count deps) 1)
+                                   (apply list '+ adds)
+                                   (first adds))
+                             expr (if (= :linear node-type)
+                                    sum
                                     (list (sym node-type) sum))]
                          [(sym nid) expr]))
                      sorted-nids)
-        out-exprs (into {} (map (fn [nid] [nid (sym nid)])
+        out-exprs (into {} (map (fn [nid]
+                                  [nid (list 'to-0-1 (sym nid))])
                                 (sort (:outputs cppn))))
         in-syms (map sym (sort (disj (:inputs cppn) :d)))
         assigns (if (contains? (:inputs cppn) :d)
