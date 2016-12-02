@@ -323,44 +323,34 @@
                     (swap! ui-state assoc :perturbation (/ x 100))))}]
    [:label "overhaul"]])
 
-(defn weights-controls
-  [app-state ui-state]
+(defn tour-init-panel
+  [ui-state]
   [:div.panel.panel-default
-   [:div.panel-heading
-    [:b "Weight changes"]
-    [:span.small.text-muted
-     " ...oh btw, you can select a node to vary only its incoming edges."]]
    [:div.panel-body
-    [:div.row
-     [:div.col-lg-12
-      [perturbation-slider ui-state]]]
-    [:div.btn-group.btn-group-justified
-     [:div.btn-group
-      [:button.btn.btn-default
-       {:on-click (fn [e]
-                    (swap-advance! app-state update :cppn
-                                   cppnx/randomise-weights
-                                   (:perturbation @ui-state)
-                                   (:selection @ui-state)))}
-       "Vary weights"]]
-     [:div.btn-group
-      [:button.btn.btn-default
-       {:on-click (fn [e]
-                    (tour-start! app-state ui-state 1))}
-       "Weight tour (1 by 1)"]]
-     [:div.btn-group
-      [:button.btn.btn-default
-       {:on-click (fn [e]
-                    (tour-start! app-state ui-state 3))}
-       "Weight tour (in 3s)"]]]]])
+    [:div
+     "Go on a "
+     [:button.btn.btn-default
+      {:on-click (fn [e]
+                   (tour-start! app-state ui-state 3))}
+      "Weight-space tour"]
+     [:span.small.text-muted
+      " ...oh btw, you can select a node to vary only its incoming edges."]]
+    [perturbation-slider ui-state]]])
+
+(defn tour-pane
+  [ui-state]
+  [:div
+   (if (:animating? @ui-state)
+     [tour-controls app-state ui-state]
+     [tour-init-panel ui-state])])
 
 (defn topology-controls
   [app-state ui-state]
   [:div.panel.panel-default
    [:div.panel-heading
-    [:b "Structure changes"]
+    [:b "Random changes"]
     [:span.small.text-muted
-     " ...for an easier time, choose one of the mutants shown below the pic."]]
+     " ...or just choose one of the mutants shown above."]]
    [:div.panel-body
     [:div.btn-group.btn-group-justified
      [:div.btn-group
@@ -368,27 +358,27 @@
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-append-node))}
-       "Append node"]]
+       "Add node"]]
      [:div.btn-group
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-add-conn))}
-       "Random link"]]
+       "Add link"]]
      [:div.btn-group
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
                                    cppnx/mutate-rewire-conn))}
-       "Random rewire"]]]
-    [:div.text-muted
-     "Hints."]
-    [:ul.text-muted
-     [:li "Drag from a source node to a target node to add a link."]
-     [:li "Drag along an existing link to remove it."]
-     [:li "Click a node to edit it, or its incoming links."]
-     [:li "For black & white, click \"s\" (saturation) and then Override (0)."]
-     [:li "To vary just color, click \"h\" (hue) and then vary weights, etc."]]]])
+       "Rewire"]]
+     [:div.btn-group
+      [:button.btn.btn-default
+       {:on-click (fn [e]
+                    (swap-advance! app-state update :cppn
+                                   cppnx/randomise-weights
+                                   (:perturbation @ui-state)
+                                   (:selection @ui-state)))}
+       "Weights"]]]]])
 
 (defn conj-to-set-key [m k x]
   (update m k #(conj (or % #{}) x)))
@@ -407,7 +397,9 @@
         zerod? (contains? (:zerod cppn) sel)]
     [:div.panel.panel-primary
      [:div.panel-heading
-      [:b "Selected node"]]
+      [:b "Selected node"]
+      [:span.small
+       "Now weight mutations will be limited to just its (incoming) edges."]]
      [:div.panel-body
       [:div.form-inline
        (when (or fun-node? output?)
@@ -473,11 +465,7 @@
                             (let [z (-> e .-target forms/getValue js/parseFloat)
                                   x (* z z (if (neg? z) -1 1))]
                               (swap! app-state assoc-in [:cppn :edges sel from-node]
-                                     x)))}]]))
-       [:p.bg-warning
-        {:style {:padding "5px"}}
-        "Now this node is selected, weight mutations will be limited to just "
-        "these (incoming) edges."]]]]))
+                                     x)))}]]))]]]))
 
 (defn code-pane-content
   [app-state ui-state]
@@ -542,19 +530,21 @@
     (fn [_ _]
       (let [cppn (:cppn @app-state)]
         [:div
-          ;; Weight controls
-          (when-not (:animating? @ui-state)
-            [weights-controls app-state ui-state])
-          ;; In-tour controls
-          (when (:animating? @ui-state)
-            [tour-controls app-state ui-state])
+          ;; Selection controls
+          (when-let [sel (:selection @ui-state)]
+            [node-controls app-state ui-state sel])
           ;; SVG
           [:div.row
             [:div.col-lg-12
               [svg/cppn-svg cppn (:selection @ui-state) svg-events-c]]]
-          ;; Selection controls
-          (when-let [sel (:selection @ui-state)]
-            [node-controls app-state ui-state sel])
+          [:div.text-muted
+           "Hints."]
+          [:ul.text-muted
+           [:li "Drag from a source node to a target node to add a link."]
+           [:li "Drag along an existing link to remove it."]
+           [:li "Click a node to edit it, or its incoming links."]
+           [:li "For black & white, click \"s\" (saturation) and then Override (0)."]
+           [:li "To vary color directly, click \"h\" (hue) and then vary weights, etc."]]
           ;; Topology controls
           (when-not (:animating? @ui-state)
             [topology-controls app-state ui-state])]))))
@@ -571,7 +561,7 @@
         (when show-mutants?
           [:span
            [:span.small.text-muted " ...pick a mutant!"]
-           [:button.btn.btn-default.btn-sm
+           [:button.btn.btn-default.btn-lg
             {:style {:margin-left "2em"}
              :on-click (fn [e]
                          (let [cppn (:cppn @app-state)]
@@ -728,9 +718,8 @@
     "so that others can, er, step on it."]
    [:p
     "The tweet will include the image and a link back to this page, "
-    "plus any hash tags or text you add here. "
-    "How about #face, #planet or #flying-spaghetti-monster?"]
-   [:p "Better keep the #cppnx tag so this stuff is findable."]
+    "plus any other text you add here. "
+    "Better keep the #cppnx tag so this stuff is findable."]
    (when-not (or (:success? @doc) (:pending? @doc))
     [:div
      [bind-fields tweetbox-template doc]
@@ -828,7 +817,10 @@
              (prepare-tweet! app-state))
            :title "Publish on Twitter"
            :disabled (when freeze? "disabled")}
-          "Publish on Twitter"]]]
+          "Publish on Twitter"]]
+        [:li
+         [:p.navbar-text
+          " see others at bottom of page."]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
@@ -856,17 +848,15 @@
   []
   [:div
    [:p
-    "Hi! This place is like "
-    [:a {:href "http://picbreeder.org/"} "picbreeder.org"]
-    " but with less Java and more animation (and a lot less history). "
-    "I hope you are set up for WebGL. "
-    "If so you can see a pretty pic made by a CPPN, "
+    "Hi. This is a place to evolve images, like "
+    [:a {:href "http://picbreeder.org/"} "picbreeder"] " and "
+    [:a {:href "http://otoro.net/neurogram/"} "neurogram"] ". "
+    "Hopefully you can see a pretty pic made by a CPPN, "
     [:i "Compositional Pattern-Producing Network. "]
     "It's a novel abstraction of biological development. Read the "
     [:a {:href "http://eplex.cs.ucf.edu/publications/2007/stanley-gpem07"} "CPPN paper"]
     " by "
-    [:a {:href "http://www.cs.ucf.edu/~kstanley/"} "Ken Stanley"]
-    " but don't forget to try a Weight Tour while you're here."]])
+    [:a {:href "http://www.cs.ucf.edu/~kstanley/"} "Ken Stanley"] "."]])
 
 (defn app-pane
   [app-state ui-state]
@@ -881,11 +871,12 @@
      [:div.col-lg-12
       [snapshots-pane app-state]]]
     [:div.row
-     [:div.col-lg-6.col-md-8
+     [:div.col-lg-6.col-md-7
       [view-pane app-state (:animating? @ui-state)]
+      [tour-pane ui-state]]
+     [:div.col-lg-6.col-md-5
       [mutants-pane (select-keys @ui-state
-                                 [:n-mutants :show-mutants? :animating?])]]
-     [:div.col-lg-6.col-md-4
+                                 [:n-mutants :show-mutants? :animating?])]
       [settings-pane app-state ui-state]
       [code-pane app-state ui-state]]]]])
 

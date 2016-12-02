@@ -48,6 +48,10 @@
          (swap! state assoc :gl (-> component
                                     reagent/dom-node
                                     (.getContext "webgl")))
+         (-> component reagent/dom-node
+             (.addEventListener "webglcontextlost"
+                                (fn [e]
+                                  (println "context lost!"))))
          (glcanvas$call-draw-fn component (:gl @state)))
 
        :component-did-update
