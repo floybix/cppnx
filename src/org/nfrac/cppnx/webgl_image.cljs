@@ -14,8 +14,8 @@
                 :bias -1.0}
            :v {:i0 1.0}
            :h {:i0 1.0}
-           :s {:i0 0.5
-               :v 1.0}}})
+           :s {:i0 -0.5
+               :v 0.5}}})
 
 (def vertex-shader
   "precision highp float;
@@ -28,7 +28,7 @@ void main(void){
 ")
 
 (defn- to-0-1 [expr]
-  (str "abs(tanh(" expr "))"))
+  (str "(0.5 + (0.5 * " expr "))"))
 
 (defn fragment-shader
   [cppn]

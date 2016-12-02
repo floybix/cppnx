@@ -7,6 +7,7 @@
   {:domain :lines
    :inputs #{:bias :z}
    :outputs #{:r :a :h :s}
+   :finals #{:h :s}
    :nodes {:i0 :gaussian}
    :edges {:i0 {:z 1.0
                 :bias 1.0}
@@ -16,7 +17,7 @@
            :s {:i0 1.0}}})
 
 (defn- to-0-1 [expr]
-  (str "abs(tanh(" expr "))"))
+  (str "(0.5 + (0.5 * " expr "))"))
 
 (defn vertex-shader
   [cppn]

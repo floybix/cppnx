@@ -10,21 +10,28 @@
      (-> (* x 2.5)
          (Math/pow 2.0)
          (* -1.0)
-         (Math/exp)))
+         (Math/exp)
+         (* 2.0)
+         (- 1.0)))
 
    (defn sigmoid [x]
-     (/ 1.0
-        (-> (* x -4.9) (Math/exp) (+ 1.0))))
+     (-> (/ 1.0
+          (-> (* x -4.9) (Math/exp) (+ 1.0)))
+         (* 2.0)
+         (- 1.0)))
 
    (defn sawtooth [x]
-     (mod x 1.0))
+     (-> (mod x 1.0)
+         (* 2.0)
+         (- 1.0)))
 
    (defn abs [x] (if (neg? x) (- x) x))
 
-   (defn to-0-1 [x] (abs (Math/tanh x)))
-
    (defn xy->d [x y]
-     (Math/sqrt (+ (* x x) (* y y))))])
+     (-> (Math/sqrt (+ (* x x) (* y y)))
+         (/ (Math/sqrt 2.0))
+         (* 2.0)
+         (- 1.0)))])
 
 (defn build-cppn-code
   [cppn]
@@ -44,17 +51,22 @@
                              sum (if (> (count deps) 1)
                                    (apply list '+ adds)
                                    (first adds))
+                             sumw  (->> deps
+                                        (map (fn [k]
+                                               (let [w (get w-exprs [nid k])]
+                                                 (list 'abs w))))
+                                        (apply list '+))
                              expr (cond
                                     (zerod? nid)
                                     0.0
                                     (= :linear node-type)
-                                    sum
+                                    (list '/ sum sumw)
                                     :else
                                     (list (sym node-type) sum))]
                          [(sym nid) expr]))
                      sorted-nids)
         out-exprs (into {} (map (fn [nid]
-                                  [nid (list 'to-0-1 (sym nid))])
+                                  [nid (sym nid)])
                                 (sort (:outputs cppn))))
         in-syms (map sym (sort (disj (:inputs cppn) :d)))
         assigns (if (contains? (:inputs cppn) :d)
