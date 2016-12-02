@@ -107,6 +107,15 @@
                         i))
                 (edge-list cppn)))
 
+(defn rand-skew
+  [max power]
+  (-> (rand (Math/pow max (/ 1 power)))
+      (Math/pow power)))
+
+(defn rand-sign [] (if (pos? (rand-int 2)) 1 -1))
+
+(defn rand-init-weight [] (* (rand-skew 3 2) (rand-sign)))
+
 (def node-prefixes (seq "nmpqrstbcdefgh"))
 
 (defn gen-node-id
@@ -124,17 +133,24 @@
           (recur pres (inc i))
           k)))))
 
-(defn mutate-append-node
-  [cppn]
+(defn mutate-add-node-before
+  [cppn before]
   (let [type (rand-nth (seq auto-node-types))
         id (gen-node-id cppn)
-        to1 (rand-nth (seq (:outputs cppn)))
-        [from1 w1] (rand-nth (seq (get-in cppn [:edges to1])))]
+        [from1 w1] (rand-nth (seq (get-in cppn [:edges before])))]
     (-> cppn
         (update :nodes assoc id type)
-        (update :edges assoc id {from1 w1})
-        (update-in [:edges to1] dissoc from1)
-        (update-in [:edges to1] assoc id 1.0))))
+        (update :edges assoc id {from1 (rand-init-weight)})
+        ;(update-in [:edges before] dissoc from1)
+        (update-in [:edges before] assoc id (rand-init-weight)))))
+
+(defn mutate-add-node
+  [cppn]
+  (mutate-add-node-before cppn (rand-nth (keys (:edges cppn)))))
+
+(defn mutate-append-node
+  [cppn]
+  (mutate-add-node-before cppn (rand-nth (seq (:outputs cppn)))))
 
 (defn mutate-add-conn-to
   [cppn to-node]
@@ -145,7 +161,7 @@
                            (concat (keys (:nodes cppn))
                                    (:inputs cppn)
                                    (:outputs cppn))) ;; outputs ok if not final
-        w (- (rand (* 3.0 2)) 3.0)]
+        w (- (rand (* 2.0 2)) 2.0)]
     (if (seq candidates)
       (-> cppn
           (assoc-in [:edges to-node (rand-nth (seq candidates))] w))
@@ -206,20 +222,13 @@
                    (assoc m (rand-nth (seq (:inputs cppn))) 1.0)
                    m)))))
 
-(defn rand-skew
-  [max power]
-  (-> (rand (Math/pow max (/ 1 power)))
-      (Math/pow power)))
-
-(defn rand-sign [] (if (pos? (rand-int 2)) 1 -1))
-
 (defn interp
   [from to z]
   (+ from (* z (- to from))))
 
 (defn rand-weight
   [from-w perturbation]
-  (let [global-w (* (rand-skew 8 3) (rand-sign))
+  (let [global-w (rand-init-weight)
         locally (+ from-w (* perturbation 0.5 global-w))
         globally (interp from-w global-w (* perturbation perturbation))]
     (+ (* perturbation globally)

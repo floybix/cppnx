@@ -49,10 +49,10 @@
   (let [perturbation (:perturbation @ui-state)
         n-mut (:n-mutants @ui-state)
         ms (for [i (range n-mut)]
-             (let [c (if (>= i (quot n-mut 2)) ;; second half
+             (let [c (if (>= i (* n-mut 0.4))
                        (cond
-                         (< (rand) 0.5)
-                         (cppnx/mutate-append-node cppn)
+                         (< (rand) 0.33)
+                         (cppnx/mutate-add-node cppn)
                          (< (rand) 0.5)
                          (cppnx/mutate-add-conn cppn)
                          :else
@@ -329,7 +329,7 @@
    [:div.panel-body
     [:div
      "Go on a "
-     [:button.btn.btn-default
+     [:button.btn.btn-success
       {:on-click (fn [e]
                    (tour-start! app-state ui-state 3))}
       "Weight-space tour"]
@@ -357,7 +357,7 @@
       [:button.btn.btn-default
        {:on-click (fn [e]
                     (swap-advance! app-state update :cppn
-                                   cppnx/mutate-append-node))}
+                                   cppnx/mutate-add-node))}
        "Add node"]]
      [:div.btn-group
       [:button.btn.btn-default
@@ -399,7 +399,7 @@
      [:div.panel-heading
       [:b "Selected node"]
       [:span.small
-       "Now weight mutations will be limited to just its (incoming) edges."]]
+       " weight mutations will be limited to its (incoming) edges."]]
      [:div.panel-body
       [:div.form-inline
        (when (or fun-node? output?)
