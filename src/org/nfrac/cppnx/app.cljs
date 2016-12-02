@@ -820,7 +820,10 @@
           "Publish on Twitter"]]
         [:li
          [:p.navbar-text
-          " see others at bottom of page."]]]
+          " "
+          [:a
+           {:href "https://twitter.com/search?q=%23cppnx"}
+           "Gallery (on twitter)"]]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
@@ -853,7 +856,7 @@
     [:a {:href "http://otoro.net/neurogram/"} "neurogram"] ". "
     "Hopefully you can see a pretty pic made by a CPPN, "
     [:i "Compositional Pattern-Producing Network. "]
-    "It's a novel abstraction of biological development. Read the "
+    "It's an abstraction of biological development. Read the "
     [:a {:href "http://eplex.cs.ucf.edu/publications/2007/stanley-gpem07"} "CPPN paper"]
     " by "
     [:a {:href "http://www.cs.ucf.edu/~kstanley/"} "Ken Stanley"] "."]])
