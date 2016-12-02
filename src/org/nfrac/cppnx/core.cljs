@@ -139,9 +139,12 @@
 (defn mutate-add-conn-to
   [cppn to-node]
   (let [to-edges (get (:edges cppn) to-node)
-        candidates (remove (into (set (keys to-edges))
-                                 (downstream cppn to-node))
-                           (concat (keys (:nodes cppn)) (:inputs cppn)))
+        candidates (remove (set (concat (keys to-edges)
+                                        (downstream cppn to-node)
+                                        (finals cppn)))
+                           (concat (keys (:nodes cppn))
+                                   (:inputs cppn)
+                                   (:outputs cppn))) ;; outputs ok if not final
         w (- (rand (* 3.0 2)) 3.0)]
     (if (seq candidates)
       (-> cppn
