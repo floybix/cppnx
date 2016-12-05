@@ -779,7 +779,7 @@
   (let [reply-info (:reply-info @app-state)
         ini-text (str (when reply-info
                         (str "@" (:screen-name reply-info) " "))
-                      "#cppnx")
+                      "something... #cppnx" \newline \newline "Evolve it:")
         doc (atom {:text ini-text
                    :include-url? true
                    :include-img? true
@@ -822,8 +822,8 @@
          [:p.navbar-text
           " "
           [:a
-           {:href "https://twitter.com/search?q=%23cppnx"}
-           "Gallery (on twitter)"]]]]
+           {:href "https://twitter.com/hashtag/cppnx"}
+           [:b "Gallery (on twitter)"]]]]]
        ;; domain
        [:form.navbar-form.navbar-left
          [:div.form-group
@@ -847,6 +847,23 @@
          [:p.navbar-text
           " use browser back/forward as undo/redo!"]]]]]]))
 
+(defn warning-pane
+  [app-state]
+  (let [uri (share/uri-with-cppn (:cppn @app-state))
+        uri-len (.-length uri)]
+    (when (> uri-len 3300)
+      [:div
+       [:p.bg-danger
+        "Warning: the CPPN is getting kind of big. Because it is encoded "
+        "in the page location link, if is gets too big, twitter won't "
+        "accept the link. Currently it is " uri-len
+        " (twitter limit seems to be ~4000). " [:b "To reduce it: "]
+        "You can delete any nodes that have no down-going links "
+        "and try deleting those with only weak links. "
+        "Or go back to something simpler. " [:br]
+        [:i "Yes this really sucks and it's because I'm lazy and "
+         "couldn't be bothered to set up a database."]]])))
+
 (defn intro-pane
   []
   [:div
@@ -869,7 +886,8 @@
    [:div.container-fluid
     [:div.row
      [:div.col-lg-12
-      [intro-pane]]]
+      [intro-pane]
+      [warning-pane app-state]]]
     [:div.row
      [:div.col-lg-12
       [snapshots-pane app-state]]]
