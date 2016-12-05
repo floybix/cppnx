@@ -187,16 +187,19 @@
 
 (defn delete-node
   [cppn node]
-  (let [above (keys (get-in cppn [:edges node]))
+  (let [above-ed (get-in cppn [:edges node])
+        above (keys above-ed)
         below (-> (cppn-graph cppn)
                   (graph/reverse-graph)
                   (graph/get-neighbors node))]
     (->
      (reduce (fn [m below-node]
-               (let [w (get-in m [:edges below-node node])]
-                 (update-in m [:edges below-node]
-                            #(-> (merge (zipmap above (repeat w)) %)
-                                 (dissoc node)))))
+               (update-in m [:edges below-node]
+                          (fn [below-ed]
+                            (if (== 1 (count below-ed))
+                              ;; node would be orphaned
+                              (select-keys above-ed [(rand-nth above)])
+                              (dissoc below-ed node)))))
              cppn
              below)
      (update :edges dissoc node)
