@@ -15,7 +15,7 @@
            :v {:i0 1.0}
            :h {:i0 1.0}
            :s {:i0 -0.5
-               :v 0.5}}})
+               :v -0.5}}})
 
 (def vertex-shader
   "precision highp float;
