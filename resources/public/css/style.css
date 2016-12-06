@@ -1,2 +1,8 @@
 /* some style */
 
+svg.cppn-graph text {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
