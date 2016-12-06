@@ -74,6 +74,14 @@
           (classes/swap el "show" "hidden"))
         data))))
 
+(defn working-start! []
+  (when-let [el (dom/getElementByClass "loading")]
+    (classes/swap el "hidden" "show")))
+
+(defn working-end! []
+  (when-let [el (dom/getElementByClass "loading")]
+    (classes/swap el "show" "hidden")))
+
 (defn generate-mutants
   [cppn ui-state]
   (let [perturbation (:perturbation @ui-state)
@@ -109,12 +117,17 @@
 
 (defn swap-advance!
   [app-state f & more]
-  (let [x (swap! app-state #(-> (apply f % more)
-                                (update :cppn cppnx/trunc-precision 7)))
-        uri (share/uri-with-cppn (:cppn x))]
-    (.pushState js/history (hash x) "cppnx" uri)
-    (on-new-cppn!)
-    x))
+  (working-start!)
+  ;; working-end! is called in main canvas render.
+  ;; set timer to allow browser to draw loading message.
+  (js/setTimeout
+   (fn [_]
+    (let [x (swap! app-state #(-> (apply f % more)
+                                  (update :cppn cppnx/trunc-precision 7)))
+          uri (share/uri-with-cppn (:cppn x))]
+      (.pushState js/history (hash x) "cppnx" uri)
+      (on-new-cppn!)))
+   50))
 
 (def all-domains [:image :lines :trace])
 
@@ -638,9 +651,8 @@
   (let []
     [:div
      [:div.backdrop
-      {:style (cond-> backdrop-style
-                (not animating?)
-                (assoc :display "none"))
+      {:class (if animating? "show" "hidden")
+       :style backdrop-style
        :on-click (fn [e]
                    (when animating? (tour-stop! app-state ui-state)))}]
      [:div.row
@@ -657,11 +669,13 @@
             (let [el (dom/getElementByClass gl-canvas-class)
                   cppn (:cppn @app-state)
                   info (gl-setup gl cppn)]
-              (gl-render info (cppnx/cppn-weights cppn))
               (swap! gl-cache assoc
                      :img-data (.toDataURL el)
                      :vertex-glsl (:vertex-glsl info)
-                     :fragment-glsl (:fragment-glsl info)))))]]]]))
+                     :fragment-glsl (:fragment-glsl info))
+              ;; this has to go after the swap! or canvas goes blank on ios
+              (gl-render info (cppnx/cppn-weights cppn))
+              (working-end!))))]]]]))
 
 (defn snapshots-pane
   [app-state]
@@ -903,6 +917,10 @@
     " by "
     [:a {:href "http://www.cs.ucf.edu/~kstanley/"} "Ken Stanley"] "."]])
 
+(defn loading-pane []
+  [:div.loading.hidden
+   [:span "working"]])
+
 (defn app-pane
   [app-state ui-state]
   [:div
@@ -912,7 +930,8 @@
     [:div.row
      [:div.col-lg-12
       [intro-pane]
-      [warning-pane app-state]]]
+      [warning-pane app-state]
+      [loading-pane]]]
     [:div.row
      [:div.col-lg-12
       [snapshots-pane app-state]]]
