@@ -46,6 +46,7 @@
 
 (def gl-canvas-class "cppnx-main-canvas")
 (def gl-snap-canvas-class "cppnx-snap-canvas")
+(def gl-hires-canvas-class "cppnx-hires-canvas")
 (def gl-mutant-canvas-class "cppnx-mutant-canvas")
 
 (defn gl-setup
@@ -692,6 +693,12 @@
      :height 100
      :style {:width "100px"
              :height "100px"}}]
+   [:canvas.hidden
+    {:class gl-hires-canvas-class
+     :width 3000
+     :height 3000
+     :style {:width "3000px"
+             :height "3000px"}}]
    (for [snap (:snapshots @app-state)]
      ^{:key (hash (:cppn snap))}
      [:div
@@ -711,7 +718,10 @@
                :direction "ltr"}}
       "Click a snapshot to revisit it. "
       "Snapshots won't survive after leaving this page, but you can "
-      "bookmark this page to keep the current CPPN (only)."])])
+      "bookmark this page to keep the current CPPN (only). "
+      [:button.btn.btn-danger.btn-xs
+       {:on-click (fn [_] (swap! app-state update :snapshots empty))}
+       "clear"]])])
 
 (def tweetbox-template
   [:div
@@ -848,6 +858,17 @@
            :disabled (when freeze? "disabled")}
           [:span.glyphicon.glyphicon-camera {:aria-hidden "true"}]
           " Snapshot"]]
+        [:li
+         [:button.btn.btn-default.navbar-btn
+          {:type :button
+           :on-click
+           (fn [_]
+             (let [cppn (:cppn @app-state)
+                   data (render-to-img-data cppn gl-hires-canvas-class true)]
+               (.open js/window data)))
+           :title "Show high resolution image"
+           :disabled (when freeze? "disabled")}
+          [:span.glyphicon.glyphicon-hd-video {:aria-hidden "true"}]]]
         [:li
          [:button.btn.btn-primary.navbar-btn
           {:type :button
