@@ -44,6 +44,36 @@
          :fragment-glsl ""
          :img-data nil}))
 
+(def gl-canvas-class "cppnx-main-canvas")
+(def gl-snap-canvas-class "cppnx-snap-canvas")
+(def gl-mutant-canvas-class "cppnx-mutant-canvas")
+
+(defn gl-setup
+  [gl cppn]
+  (case (or (:domain cppn) :image)
+    :image (gl-img/setup gl cppn)
+    :lines (gl-lines/setup gl cppn)
+    :trace (gl-trace/setup gl cppn)))
+
+(defn gl-render
+  [info ws]
+  (case (or (:domain info) :image)
+    :image (gl-img/render info ws)
+    :lines (gl-lines/render info ws)
+    :trace (gl-trace/render info ws)))
+
+(defn render-to-img-data
+  [cppn canvas-el-class and-hide?]
+  (when-let [el (dom/getElementByClass canvas-el-class)]
+    (let [_ (classes/swap el "hidden" "show")
+          gl (.getContext el "webgl")
+          info (gl-setup gl cppn)]
+      (gl-render info (cppnx/cppn-weights cppn))
+      (let [data (.toDataURL el)]
+        (when and-hide?
+          (classes/swap el "show" "hidden"))
+        data))))
+
 (defn generate-mutants
   [cppn ui-state]
   (let [perturbation (:perturbation @ui-state)
@@ -61,10 +91,21 @@
                (cppnx/randomise-weights c perturbation nil)))]
     (vec ms)))
 
-(defn on-new-cppn!
+(defn render-mutants
+  [cppns]
+  (mapv (fn [cppn]
+          {:cppn cppn
+           :img-data (render-to-img-data cppn gl-mutant-canvas-class true)})
+        cppns))
+
+(defn generate-and-render-mutants!
   []
-  (let [cppn (:cppn @app-state)]
-    (swap! mutants-state assoc :mutants (generate-mutants cppn ui-state))))
+  (let [cppn (:cppn @app-state)
+        muts (generate-mutants cppn ui-state)]
+    (swap! mutants-state assoc :mutants (render-mutants muts))))
+
+(defn on-new-cppn! []
+  (generate-and-render-mutants!))
 
 (defn swap-advance!
   [app-state f & more]
@@ -94,7 +135,6 @@
 ;;; not on-load after page load, because that flashes default cppn
 (when-let [c (get-uri-cppn-full)]
   (swap! app-state assoc :cppn c))
-(on-new-cppn!)
 
 (defonce
   onpopstate
@@ -104,39 +144,15 @@
         (swap! app-state assoc :cppn c)
         (on-new-cppn!)))))
 
-
-(defn gl-setup
-  [gl cppn]
-  (case (or (:domain cppn) :image)
-    :image (gl-img/setup gl cppn)
-    :lines (gl-lines/setup gl cppn)
-    :trace (gl-trace/setup gl cppn)))
-
-(defn gl-render
-  [info ws]
-  (case (or (:domain info) :image)
-    :image (gl-img/render info ws)
-    :lines (gl-lines/render info ws)
-    :trace (gl-trace/render info ws)))
-
-(def gl-canvas-class "cppnx-main-canvas")
-(def gl-snap-canvas-class "cppnx-snap-canvas")
-(def gl-mutant-canvas-class "cppnx-mutant-canvas")
-
 (defn snapshot!
   [app-state ui-state]
-  (let [el (dom/getElementByClass gl-snap-canvas-class)
-        _ (classes/swap el "hidden" "show")
-        gl (.getContext el "webgl")
-        cppn (:cppn @app-state)
-        info (gl-setup gl cppn)]
-    (gl-render info (cppnx/cppn-weights cppn))
+  (let [cppn (:cppn @app-state)]
     (when-not (contains? (set (map :cppn (:snapshots @app-state)))
                          cppn)
-      (swap! app-state update :snapshots conj
-        {:img-data (.toDataURL el)
-         :cppn cppn}))
-    (classes/swap el "show" "hidden")))
+      (let [data (render-to-img-data cppn gl-snap-canvas-class true)]
+        (swap! app-state update :snapshots conj
+          {:img-data data
+           :cppn cppn})))))
 
 (defn animate [state step-fn draw-fn]
   (js/requestAnimationFrame
@@ -549,10 +565,26 @@
           (when-not (:animating? @ui-state)
             [topology-controls app-state ui-state])]))))
 
+(defn mutants-canvas
+  []
+  (reagent/create-class
+   {:component-did-mount
+    (fn [component]
+      (generate-and-render-mutants!))
+    :reagent-render
+    (fn [_]
+      [:canvas.hidden
+       {:class gl-mutant-canvas-class
+        :width 100
+        :height 100
+        :style {:width "100px"
+                :height "100px"}}])}))
+
 (defn mutants-pane
   [{:keys [n-mutants show-mutants? animating?]}]
-  (let []
-    [:div
+  [:div
+   [mutants-canvas]
+   [:div
      [:div.row
       [:div.col-lg-12
        [:div
@@ -564,9 +596,7 @@
            [:button.btn.btn-default.btn-lg
             {:style {:margin-left "2em"}
              :on-click (fn [e]
-                         (let [cppn (:cppn @app-state)]
-                           (swap! mutants-state assoc :mutants
-                                  (generate-mutants cppn ui-state))))}
+                         (generate-and-render-mutants!))}
             "Regenerate"]])
         [:button.btn.btn-default.btn-sm
          {:style {:margin-left "2em"}
@@ -577,26 +607,22 @@
        [:div.row
         [:div.col-lg-12
          [perturbation-slider ui-state]]])
-     (when (and show-mutants? (not animating?))
+     (when show-mutants?
        [:div.row
         [:div.col-lg-12
-         (for [i (range n-mutants)]
-           ^{:key (str "mutant" i)}
-           [:div.pull-left
-            [glcanvas
-             {:class gl-mutant-canvas-class
-              :style {:margin-left "2px"
-                      :width "100px"
-                      :height "100px"}
-              :on-click (fn [e]
-                          (let [cppn (get-in @mutants-state [:mutants i])]
-                            (swap-advance! app-state assoc :cppn cppn)))}
-             100 100
-             [mutants-state]
-             (fn [gl]
-                 (let [cppn (get-in @mutants-state [:mutants i])
-                       info (gl-setup gl cppn)]
-                   (gl-render info (cppnx/cppn-weights cppn))))]])]])]))
+         (doall
+           (for [i (range n-mutants)]
+             ^{:key (str "mutant" i)}
+             [:div.pull-left
+              [:img
+               {:src (get-in @mutants-state [:mutants i :img-data])
+                :style {:margin-left "2px"
+                        :margin-bottom "2px"
+                        :width "100px"
+                        :height "100px"}
+                :on-click (fn [e]
+                            (let [cppn (get-in @mutants-state [:mutants i :cppn])]
+                              (swap-advance! app-state assoc :cppn cppn)))}]]))]])]])
 
 (def backdrop-style
   {:position         "fixed"
@@ -650,8 +676,7 @@
     {:class gl-snap-canvas-class
      :width 100
      :height 100
-     :style {:border "1px black"
-             :width "100px"
+     :style {:width "100px"
              :height "100px"}}]
    (for [snap (:snapshots @app-state)]
      ^{:key (hash (:cppn snap))}
