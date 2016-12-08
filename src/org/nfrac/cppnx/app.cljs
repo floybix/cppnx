@@ -40,9 +40,10 @@
   (atom init-ui-state))
 
 (defonce gl-cache
-  (atom {:vertex-glsl ""
-         :fragment-glsl ""
-         :img-data nil}))
+  (clojure.core/atom
+   {:vertex-glsl ""
+    :fragment-glsl ""
+    :img-data nil}))
 
 (def gl-canvas-class "cppnx-main-canvas")
 (def gl-snap-canvas-class "cppnx-snap-canvas")
@@ -498,8 +499,9 @@
                                      x)))}]]))]]]))
 
 (defn code-pane-content
-  [app-state ui-state]
+  [app-state gl-cache]
   [:div
+   {:style {:margin "1em"}}
    [:h4 "EDN"]
    [:pre
     (with-out-str
@@ -518,7 +520,7 @@
     (:fragment-glsl @gl-cache)]])
 
 (defn code-pane
-  [app-state ui-state]
+  [app-state]
   [:div
    [:div.panel.panel-default
     [:div.panel-heading
@@ -527,11 +529,8 @@
      [:button.btn.btn-default.btn-sm
       {:on-click
        (fn [e]
-         (swap! ui-state update :show-code? #(not %)))}
-      (if (:show-code? @ui-state) "hide" "show")]]
-    (when (:show-code? @ui-state)
-      [:div.panel-body
-       [code-pane-content app-state ui-state]])]])
+         (reagent-modals/modal! [code-pane-content app-state gl-cache]))}
+      "Show"]]]])
 
 (defn settings-pane
   [app-state ui-state]
@@ -670,12 +669,11 @@
             (let [el (dom/getElementByClass gl-canvas-class)
                   cppn (:cppn @app-state)
                   info (gl-setup gl cppn)]
+              (gl-render info (cppnx/cppn-weights cppn))
               (swap! gl-cache assoc
                      :img-data (.toDataURL el)
                      :vertex-glsl (:vertex-glsl info)
                      :fragment-glsl (:fragment-glsl info))
-              ;; this has to go after the swap! or canvas goes blank on ios
-              (gl-render info (cppnx/cppn-weights cppn))
               (working-end!))))]]]]))
 
 (defn snapshots-pane
@@ -755,7 +753,7 @@
        [:input
         {:field :checkbox
          :id :include-img?}]
-       " Include image (leave this on)"]]]])
+       " Include img (leave this on)"]]]])
 
 (defn tweet-modal-content
   [doc]
@@ -772,6 +770,13 @@
    (when-not (or (:success? @doc) (:pending? @doc))
     [:div
      [bind-fields tweetbox-template doc]
+     [:div.pull-right
+      [:img {:src (:img-data @gl-cache)
+             :title "This is a content check; will be full size when posted."
+             :style {:clear "right"
+                     :width "20px"
+                     :height "20px"
+                     :border "1px solid black"}}]]
      [:div
       [:button.btn.btn-primary.btn-lg
        {:style {:margin "5px"}
@@ -790,7 +795,7 @@
        "Tweet!"]
       [:span
        " You'll be asked to sign in to a Twitter account to post it. "]
-      [:span.small.text-muted
+      [:p.small.text-center.text-muted
        [:a {:href "#"
             :on-click (fn [e]
                         (.preventDefault e)
@@ -964,7 +969,7 @@
       [mutants-pane (select-keys @ui-state
                                  [:n-mutants :show-mutants? :animating?])]
       [settings-pane app-state ui-state]
-      [code-pane app-state ui-state]]]]])
+      [code-pane app-state]]]]])
 
 (reagent/render-component [app-pane app-state ui-state]
                           (. js/document (getElementById "app")))

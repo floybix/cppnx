@@ -16,13 +16,13 @@ thousands of evolved images. Check it out, the images are truly incredible.
 
 Neurogram is a 2015 reimagining of picbreeder in Javascript with a sleek,
 minimal design. (If I'd known about it, I probably wouldn't have built cppnx
-from scratch).
+from scratch.)
 
 Cppnx was written in 2016.
 
 ### User interface
 
-The primary UI of both picbreeder and neurogram is a black box - the user simply
+The primary UI of both picbreeder and neurogram is black-box; the user simply
 selects images. Both have a network view on a separate screen. Picbreeder
 has a "DNA analysis" applet which can vary nodes and edges.
 
